@@ -1,5 +1,4 @@
 package weaver.rules
-
 object Ejection {
   // TODO
 //

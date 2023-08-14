@@ -1,7 +1,7 @@
 package dproc.data
 
-import weaver.Gard.GardM
-import weaver.data._
+import weaver.GardState.GardM
+import weaver.data.*
 
 /**
  * All data required to be packed in a block.
@@ -30,30 +30,22 @@ final case class Block[M, S, T](
   merge: Set[T],
   bonds: Bonds[S],
   lazTol: Int,
-  expThresh: Int
+  expThresh: Int,
 )
 
 object Block {
-
-  trait Identifier[M, S] {
-    def id: M // ID (hash)
-    def sender: S // block sender
-    def minGenJs: Set[M] // minimal generative justifications set)
-    def offences: Set[M] // offences computed by the message
-  }
-
   final case class WithId[M, S, T](id: M, m: Block[M, S, T])
 
-  def toLazoM[M, S, T](m: Block[M, S, T]) = LazoM(
+  def toLazoM[M, S, T](m: Block[M, S, T]) = MessageData(
     m.sender,
     m.minGenJs,
     m.offences,
     LazoF(m.finalFringe),
-    LazoE(m.bonds, m.lazTol, m.expThresh)
+    FinalData(m.bonds, m.lazTol, m.expThresh),
   )
 
   def toLazoE[M, S, T](m: Block[M, S, T]) =
-    LazoE(m.bonds, m.lazTol, m.expThresh)
+    FinalData(m.bonds, m.lazTol, m.expThresh)
 
   def toGardM[M, S, T](m: Block[M, S, T]): GardM[M, T] = GardM(m.txs.toSet, m.finalFringe)
 }
