@@ -6,6 +6,10 @@ import rhonix.diagnostics.KamonDiagnostics
 final class KamonSyntax[F[_], T](private val f: F[T]) extends AnyVal {
   def kamonTimer(name: String, tags: Map[String, Any] = Map())(implicit syncF: Sync[F]): F[T] =
     KamonDiagnostics.logTime(f)(name, tags)
+
+  def kamonTrace(opName: String, component: String)(implicit syncF: Sync[F]): F[T] =
+    KamonDiagnostics.span(f)(opName, component)
+
 }
 
 object KamonSyntax {

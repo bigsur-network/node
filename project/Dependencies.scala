@@ -24,10 +24,9 @@ object Dependencies {
   val scalatestScalacheck  = "org.scalatestplus" %% "scalacheck-1-17" % "3.2.16.0" % Test
 
   // Diagnostics
-  val kamon                 = "io.kamon" %% "kamon-core"        % "2.6.3"
-  val kamonStatus           = "io.kamon" %% "kamon-status-page" % "2.6.3"
-  val kamonInfluxDbReporter = "io.kamon" %% "kamon-influxdb"    % "2.6.0"
-  val kamonZipkinReporter   = "io.kamon" %% "kamon-jaeger"      % "2.6.0"
+  val kamonBundle           = "io.kamon" %% "kamon-bundle"   % "2.6.1"
+  val kamonInfluxDbReporter = "io.kamon" %% "kamon-influxdb" % "2.6.0"
+  val kamonJaegerReporter   = "io.kamon" %% "kamon-jaeger"   % "2.6.0"
 
   val http4sNetty = "org.http4s" %% "http4s-netty-server" % "0.5.9"
   val http4sBlaze = "org.http4s" %% "http4s-blaze-server" % "0.23.14"
@@ -46,7 +45,7 @@ object Dependencies {
 
   val common = Seq(catsCore, catsEffect, fs2Core)
 
-  val diagnostics = Seq(kamon, kamonStatus, kamonInfluxDbReporter, kamonZipkinReporter)
+  val diagnostics = Seq(kamonBundle, kamonInfluxDbReporter, kamonJaegerReporter)
 
   val http4s = Seq(http4sNetty, http4sDSL, circeCodec, http4sBlaze)
 
