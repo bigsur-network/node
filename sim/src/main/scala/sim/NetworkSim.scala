@@ -1,5 +1,6 @@
 package sim
 
+import api.Servers
 import cats.Parallel
 import cats.effect.*
 import cats.effect.kernel.Async
@@ -9,8 +10,7 @@ import dproc.data.Block
 import fs2.Stream
 import io.rhonix.node.Node
 import org.http4s.EntityEncoder
-import rhonix.api.HttpApiStream
-import rhonix.api.HttpApiStream.httpRoute
+import rhonix.api.http.routes.All
 import rhonix.execution.OnlyBalancesEngine.Deploy
 import sdk.DagCausalQueue
 import sdk.node.{Processor, Proposer}
@@ -124,7 +124,7 @@ object NetworkSim extends IOApp {
 
             val apiServerStream: Stream[F, ExitCode] = if (idx == 0) {
               implicit val a: EntityEncoder[F, Long] = org.http4s.circe.jsonEncoderOf[F, Long]
-              HttpApiStream[F](httpRoute[F, Long](api.balances), 8080, "localhost")
+              Servers.http[F](All[F, Long](api.balances), 8080, "localhost")
             } else Stream.empty
 
             (run concurrently bootstrap concurrently tpsUpdate concurrently apiServerStream) -> getData
