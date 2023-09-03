@@ -2,11 +2,13 @@ package squeryl
 
 import cats.effect.Sync
 import cats.syntax.all.*
-import sdk.CustomTypeMode.*
-import sdk.RhonixNodeDb.blockDeploysTable
+import sdk.api.BlockDeploysDbApi
 import sdk.api.data.*
+import sdk.db.DbSession
 import sdk.db.DbSession.withSessionF
-import sdk.db.{BlockDeploysDbApi, BlockDeploysTable, DbSession}
+import squeryl.RhonixNodeDb.blockDeploysTable
+import squeryl.tables.BlockDeploysTable
+import squeryl.tables.CustomTypeMode.*
 
 class BlockDeploysDbApiImpl[F[_]: Sync: DbSession] extends BlockDeploysDbApi[F] {
   override def insert(blockDeploys: BlockDeploys): F[BlockDeploys] =

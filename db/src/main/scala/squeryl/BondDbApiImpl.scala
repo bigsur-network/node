@@ -3,11 +3,13 @@ package squeryl
 import cats.data.OptionT
 import cats.effect.Sync
 import cats.syntax.all.*
-import sdk.CustomTypeMode.*
-import sdk.RhonixNodeDb.{bondTable, validatorTable}
+import sdk.api.BondDbApi
 import sdk.api.data.Bond
+import sdk.db.DbSession
 import sdk.db.DbSession.withSessionF
-import sdk.db.{BondDbApi, BondTable, DbSession}
+import squeryl.RhonixNodeDb.{bondTable, validatorTable}
+import squeryl.tables.BondTable
+import squeryl.tables.CustomTypeMode.*
 
 class BondDbApiImpl[F[_]: Sync: DbSession] extends BondDbApi[F] {
   override def insert(bond: Bond, validatorId: Long): F[Long] =

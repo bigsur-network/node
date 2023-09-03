@@ -1,6 +1,6 @@
 import org.squeryl.adapters.PostgreSqlAdapter
-import sdk.CustomTypeMode
 import sdk.db.DbSession
+import squeryl.tables.CustomTypeMode
 
 import java.sql.Connection
 

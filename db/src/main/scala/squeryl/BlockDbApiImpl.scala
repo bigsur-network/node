@@ -3,11 +3,13 @@ package squeryl
 import cats.data.OptionT
 import cats.effect.Sync
 import cats.syntax.all.*
-import sdk.CustomTypeMode.*
-import sdk.RhonixNodeDb.blockTable
+import sdk.api.BlockDbApi
 import sdk.api.data.*
 import sdk.db.*
 import sdk.db.DbSession.withSessionF
+import squeryl.RhonixNodeDb.blockTable
+import squeryl.tables.BlockTable
+import squeryl.tables.CustomTypeMode.*
 
 class BlockDbApiImpl[F[
   _,

@@ -1,7 +1,7 @@
 package squeryl
 
-import sdk.CustomTypeMode.*
-import sdk.RhonixNodeDb.{blockDeploysTable, deployTable}
+import squeryl.RhonixNodeDb.{blockDeploysTable, deployTable}
+import squeryl.tables.CustomTypeMode.*
 
 /**
  * Collection of DB queries using `squeryl` library.

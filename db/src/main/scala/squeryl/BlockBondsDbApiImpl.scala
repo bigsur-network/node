@@ -2,11 +2,13 @@ package squeryl
 
 import cats.effect.Sync
 import cats.syntax.all.*
-import sdk.CustomTypeMode.*
-import sdk.RhonixNodeDb.blockBondsTable
+import sdk.api.BlockBondsDbApi
 import sdk.api.data.BlockBonds
+import sdk.db.DbSession
 import sdk.db.DbSession.withSessionF
-import sdk.db.{BlockBondsDbApi, BlockBondsTable, DbSession}
+import squeryl.RhonixNodeDb.blockBondsTable
+import squeryl.tables.CustomTypeMode.*
+import squeryl.tables.BlockBondsTable
 
 class BlockBondsDbApiImpl[F[_]: Sync: DbSession] extends BlockBondsDbApi[F] {
   override def insert(blockBonds: BlockBonds): F[BlockBonds] =

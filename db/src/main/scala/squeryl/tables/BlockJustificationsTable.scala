@@ -1,4 +1,4 @@
-package sdk.db
+package squeryl.tables
 
 import sdk.api.data.BlockJustifications
 
@@ -10,9 +10,4 @@ object BlockJustificationsTable {
     BlockJustificationsTable(blockJustifications.validatorId, blockJustifications.latestBlockId)
   def fromDb(blockJustifications: BlockJustificationsTable): BlockJustifications =
     BlockJustifications(blockJustifications.validatorId, blockJustifications.latestBlockId)
-}
-
-trait BlockJustificationsDbApi[F[_]] {
-  def insert(blockJustifications: BlockJustifications): F[BlockJustifications]
-  def getByBlock(latestBlockId: Long): F[Seq[BlockJustifications]]
 }

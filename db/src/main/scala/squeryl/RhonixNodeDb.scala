@@ -1,19 +1,8 @@
-package sdk
+package squeryl
 
-import org.squeryl.dsl.{CanCompare, TByteArray}
-import org.squeryl.{KeyedEntity, Schema, Table}
-import sdk.db.*
-
-trait DbTable extends KeyedEntity[Long] {
-  def name: String = this.getClass.getSimpleName.takeWhile(_ != '$').replace("Table", "")
-}
-
-object CustomTypeMode extends org.squeryl.PrimitiveTypeMode {
-  // custom types, etc, go here
-  implicit val canCompareByteArray: CanCompare[TByteArray, TByteArray] = new CanCompare[TByteArray, TByteArray]
-}
-
-import sdk.CustomTypeMode.*
+import org.squeryl.{Schema, Table}
+import squeryl.tables.CustomTypeMode.*
+import squeryl.tables.*
 
 object RhonixNodeDb extends Schema {
   val validatorTable: Table[ValidatorTable]                     = table[ValidatorTable]("Validator")
@@ -32,5 +21,3 @@ object RhonixNodeDb extends Schema {
   private def autoincrement[A <: DbTable](table: Table[A]): Unit =
     on(table)(t => declare(t.id is autoIncremented(s"${t.name}_id_seq")))
 }
-
-package object db {}

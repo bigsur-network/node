@@ -4,8 +4,9 @@ import cats.effect.Sync
 import sdk.api.ExternalApi
 import sdk.api.data.*
 import sdk.db.DbSession.withSessionF
-import sdk.db.{DbSession, DeployTable}
+import sdk.db.DbSession
 import squeryl.DbQuery
+import squeryl.tables.DeployTable
 
 /**
  * Implementation of the external API using `squeryl` library.

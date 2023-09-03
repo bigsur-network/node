@@ -2,11 +2,13 @@ package squeryl
 
 import cats.effect.Sync
 import cats.syntax.all.*
-import sdk.CustomTypeMode.*
-import sdk.RhonixNodeDb.validatorTable
+import sdk.api.ValidatorDbApi
 import sdk.api.data.Validator
+import sdk.db.DbSession
 import sdk.db.DbSession.withSessionF
-import sdk.db.{DbSession, ValidatorDbApi, ValidatorTable}
+import squeryl.RhonixNodeDb.validatorTable
+import squeryl.tables.CustomTypeMode.*
+import squeryl.tables.ValidatorTable
 
 class ValidatorDbApiImpl[F[_]: Sync: DbSession] extends ValidatorDbApi[F] {
   override def insert(validator: Validator): F[Long] =

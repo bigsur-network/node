@@ -2,11 +2,13 @@ package squeryl
 
 import cats.effect.Sync
 import cats.syntax.all.*
-import sdk.CustomTypeMode.*
-import sdk.RhonixNodeDb.deployTable
+import sdk.api.DeployDbApi
 import sdk.api.data.Deploy
 import sdk.db.*
 import sdk.db.DbSession.withSessionF
+import squeryl.RhonixNodeDb.deployTable
+import squeryl.tables.CustomTypeMode.*
+import squeryl.tables.DeployTable
 
 class DeployDbApiImpl[F[_]: Sync: DbSession] extends DeployDbApi[F] {
   override def insert(deploy: Deploy): F[Long] =

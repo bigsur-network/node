@@ -2,11 +2,13 @@ package squeryl
 
 import cats.effect.Sync
 import cats.syntax.all.*
-import sdk.CustomTypeMode.*
-import sdk.RhonixNodeDb.blockJustificationsTable
+import sdk.api.BlockJustificationsDbApi
 import sdk.api.data.*
+import sdk.db.DbSession
 import sdk.db.DbSession.withSessionF
-import sdk.db.{BlockJustificationsDbApi, BlockJustificationsTable, DbSession}
+import squeryl.RhonixNodeDb.blockJustificationsTable
+import squeryl.tables.BlockJustificationsTable
+import squeryl.tables.CustomTypeMode.*
 
 class BlockJustificationsDbApiImpl[F[_]: Sync: DbSession] extends BlockJustificationsDbApi[F] {
   override def insert(blockJustifications: BlockJustifications): F[BlockJustifications] =
