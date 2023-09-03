@@ -12,7 +12,7 @@ import org.scalacheck.ScalacheckShapeless.*
 import org.scalatest.flatspec.AsyncFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
-import sdk.api.*
+import sdk.api.data.*
 import sdk.db.*
 import squeryl.*
 

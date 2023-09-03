@@ -1,7 +1,7 @@
 package sdk.db
 
 import sdk.DbTable
-import sdk.api.Validator
+import sdk.api.data.Validator
 
 @SuppressWarnings(Array("org.wartremover.warts.FinalCaseClass"))
 case class ValidatorTable(

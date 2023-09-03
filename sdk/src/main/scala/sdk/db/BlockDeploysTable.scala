@@ -1,6 +1,6 @@
 package sdk.db
 
-import sdk.api.BlockDeploys
+import sdk.api.data.*
 
 @SuppressWarnings(Array("org.wartremover.warts.FinalCaseClass"))
 case class BlockDeploysTable(blockId: Long, deployId: Long)

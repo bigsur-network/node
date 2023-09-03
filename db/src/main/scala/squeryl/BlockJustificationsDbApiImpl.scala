@@ -4,7 +4,7 @@ import cats.effect.Sync
 import cats.syntax.all.*
 import sdk.CustomTypeMode.*
 import sdk.RhonixNodeDb.blockJustificationsTable
-import sdk.api.BlockJustifications
+import sdk.api.data.*
 import sdk.db.DbSession.withSessionF
 import sdk.db.{BlockJustificationsDbApi, BlockJustificationsTable, DbSession}
 

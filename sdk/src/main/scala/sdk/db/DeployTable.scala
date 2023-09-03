@@ -1,7 +1,7 @@
 package sdk.db
 
 import sdk.DbTable
-import sdk.api.Deploy
+import sdk.api.data.Deploy
 
 @SuppressWarnings(Array("org.wartremover.warts.FinalCaseClass"))
 case class DeployTable(

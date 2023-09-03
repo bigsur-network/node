@@ -1,6 +1,6 @@
 package sdk.db
 
-import sdk.api.BlockBonds
+import sdk.api.data.*
 
 @SuppressWarnings(Array("org.wartremover.warts.FinalCaseClass"))
 case class BlockBondsTable(blockId: Long, bondId: Long)

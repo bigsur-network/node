@@ -1,7 +1,8 @@
 package api
 
 import cats.effect.Sync
-import sdk.api.{Block, Deploy, ExternalApi}
+import sdk.api.ExternalApi
+import sdk.api.data.*
 import sdk.db.DbSession.withSessionF
 import sdk.db.{DbSession, DeployTable}
 import squeryl.DbQuery

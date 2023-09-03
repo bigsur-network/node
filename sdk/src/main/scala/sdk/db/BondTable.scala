@@ -1,7 +1,7 @@
 package sdk.db
 
 import sdk.DbTable
-import sdk.api.Bond
+import sdk.api.data.Bond
 
 @SuppressWarnings(Array("org.wartremover.warts.FinalCaseClass"))
 case class BondTable(

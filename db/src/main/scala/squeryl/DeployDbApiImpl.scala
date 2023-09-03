@@ -4,7 +4,7 @@ import cats.effect.Sync
 import cats.syntax.all.*
 import sdk.CustomTypeMode.*
 import sdk.RhonixNodeDb.deployTable
-import sdk.api.Deploy
+import sdk.api.data.Deploy
 import sdk.db.*
 import sdk.db.DbSession.withSessionF
 

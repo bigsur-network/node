@@ -1,6 +1,6 @@
 package sdk.db
 
-import sdk.api.BlockJustifications
+import sdk.api.data.BlockJustifications
 
 @SuppressWarnings(Array("org.wartremover.warts.FinalCaseClass"))
 case class BlockJustificationsTable(validatorId: Long, latestBlockId: Long)

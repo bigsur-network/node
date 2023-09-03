@@ -4,7 +4,7 @@ import cats.effect.Sync
 import cats.syntax.all.*
 import sdk.CustomTypeMode.*
 import sdk.RhonixNodeDb.blockBondsTable
-import sdk.api.BlockBonds
+import sdk.api.data.BlockBonds
 import sdk.db.DbSession.withSessionF
 import sdk.db.{BlockBondsDbApi, BlockBondsTable, DbSession}
 

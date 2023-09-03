@@ -4,7 +4,7 @@ import cats.effect.Sync
 import cats.syntax.all.*
 import sdk.CustomTypeMode.*
 import sdk.RhonixNodeDb.blockDeploysTable
-import sdk.api.BlockDeploys
+import sdk.api.data.*
 import sdk.db.DbSession.withSessionF
 import sdk.db.{BlockDeploysDbApi, BlockDeploysTable, DbSession}
 

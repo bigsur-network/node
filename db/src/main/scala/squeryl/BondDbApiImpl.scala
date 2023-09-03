@@ -5,7 +5,7 @@ import cats.effect.Sync
 import cats.syntax.all.*
 import sdk.CustomTypeMode.*
 import sdk.RhonixNodeDb.{bondTable, validatorTable}
-import sdk.api.Bond
+import sdk.api.data.Bond
 import sdk.db.DbSession.withSessionF
 import sdk.db.{BondDbApi, BondTable, DbSession}
 

@@ -5,7 +5,7 @@ import cats.effect.Sync
 import cats.syntax.all.*
 import sdk.CustomTypeMode.*
 import sdk.RhonixNodeDb.blockTable
-import sdk.api.{Block, Bond, Deploy, Validator}
+import sdk.api.data.*
 import sdk.db.*
 import sdk.db.DbSession.withSessionF
 
