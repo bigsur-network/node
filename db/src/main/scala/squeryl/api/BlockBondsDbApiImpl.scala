@@ -1,4 +1,4 @@
-package squeryl
+package squeryl.api
 
 import cats.effect.Sync
 import cats.syntax.all.*
@@ -7,8 +7,8 @@ import sdk.api.data.BlockBonds
 import sdk.db.DbSession
 import sdk.db.DbSession.withSessionF
 import squeryl.RhonixNodeDb.blockBondsTable
-import squeryl.tables.CustomTypeMode.*
 import squeryl.tables.BlockBondsTable
+import squeryl.tables.CustomTypeMode.*
 
 class BlockBondsDbApiImpl[F[_]: Sync: DbSession] extends BlockBondsDbApi[F] {
   override def insert(blockBonds: BlockBonds): F[BlockBonds] =

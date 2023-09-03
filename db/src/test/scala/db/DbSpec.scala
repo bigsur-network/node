@@ -15,6 +15,15 @@ import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import sdk.api.data.*
 import sdk.db.*
 import squeryl.*
+import squeryl.api.{
+  BlockBondsDbApiImpl,
+  BlockDbApiImpl,
+  BlockDeploysDbApiImpl,
+  BlockJustificationsDbApiImpl,
+  BondDbApiImpl,
+  DeployDbApiImpl,
+  ValidatorDbApiImpl,
+}
 
 // TODO re-enable these tests when it is possible to execute them on CI.
 // At the moment Github Actions does not allow non-root users and embedded postgres requires non-root.

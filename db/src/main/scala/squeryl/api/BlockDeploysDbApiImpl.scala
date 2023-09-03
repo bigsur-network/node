@@ -1,4 +1,4 @@
-package squeryl
+package squeryl.api
 
 import cats.effect.Sync
 import cats.syntax.all.*
