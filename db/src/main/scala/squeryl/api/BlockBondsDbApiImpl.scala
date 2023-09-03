@@ -1,21 +1,20 @@
 package squeryl.api
 
-import cats.effect.Sync
+import cats.Applicative
 import cats.syntax.all.*
 import sdk.api.BlockBondsDbApi
 import sdk.api.data.BlockBonds
-import sdk.db.DbSession
-import sdk.db.DbSession.withSessionF
 import squeryl.RhonixNodeDb.blockBondsTable
 import squeryl.tables.BlockBondsTable
 import squeryl.tables.CustomTypeMode.*
+import squeryl.{withSession, SqlConn}
 
-class BlockBondsDbApiImpl[F[_]: Sync: DbSession] extends BlockBondsDbApi[F] {
+class BlockBondsDbApiImpl[F[_]: Applicative: SqlConn] extends BlockBondsDbApi[F] {
   override def insert(blockBonds: BlockBonds): F[BlockBonds] =
-    withSessionF(blockBondsTable.insert(BlockBondsTable.toDb(blockBonds))).map(BlockBondsTable.fromDb)
+    withSession(blockBondsTable.insert(BlockBondsTable.toDb(blockBonds))).map(BlockBondsTable.fromDb)
 
   override def getByBlock(blockId: Long): F[Seq[BlockBonds]] =
-    withSessionF(blockBondsTable.where(_.blockId === blockId).map(BlockBondsTable.fromDb).toSeq)
+    withSession(blockBondsTable.where(_.blockId === blockId).map(BlockBondsTable.fromDb).toSeq)
 }
 
 object BlockBondsDbApiImpl {
