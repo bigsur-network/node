@@ -2,34 +2,42 @@ package sim
 
 import cats.Parallel
 import cats.effect.*
-import cats.effect.kernel.Async
+import cats.effect.kernel.{Async, Temporal}
 import cats.effect.std.{Console, Random}
 import cats.syntax.all.*
 import dproc.data.Block
-import fs2.Stream
+import fs2.{Pipe, Stream}
 import io.rhonix.node.Node
 import io.rhonix.node.api.http
-import io.rhonix.node.api.http.routes.All
+import io.rhonix.node.api.http.routes.*
 import org.http4s.EntityEncoder
-import rhonix.execution.OnlyBalancesEngine.Deploy
-import sdk.DagCausalQueue
+import rhonix.diagnostics.KamonContextStore
 import sdk.api.*
 import sdk.api.data.{Block as ApiBlock, BlockDeploys}
-import sdk.node.{Processor, Proposer}
+import sdk.hashing.Blake2b256Hash
+import sdk.history.History.EmptyRootHash
+import sdk.store.{ByteArrayKeyValueTypedStore, InMemoryKeyValueStore}
 import sdk.syntax.all.*
-import sim.Env.*
+import sim.balances.*
+import sim.balances.MergeLogicForPayments.mergeRejectNegativeOverflow
+import sim.balances.data.BalancesState.Default
+import sim.balances.data.{BalancesDeploy, BalancesState}
 import weaver.WeaverState
 import weaver.data.*
 
 import scala.concurrent.duration.{Duration, DurationInt, MICROSECONDS}
 
 object NetworkSim extends IOApp {
+
+  /// Users (wallets) making transactions
+  val users: Set[Wallet] = (1 to 100).toSet
+
   // Dummy types for message id, sender id and transaction
   type M = String
   type S = String
-  type T = String
+  type T = BalancesDeploy
   implicit val ordS = new Ordering[String] {
-    override def compare(x: S, y: S): Int = x.length compareTo y.length
+    override def compare(x: S, y: S): Int = x compareTo y
   }
 
   final case class Config(
@@ -91,33 +99,16 @@ object NetworkSim extends IOApp {
     }
   }
 
-  /** Init simulation. Return list of streams representing processes of the computer. */
   def sim[F[_]: Async: Parallel: Random: Console: KamonContextStore](c: Config): Stream[F, Unit] = {
 
-    /** Make the computer, init all peers with lfs. */
-    def mkNet(lfs: MessageData[M, S]): F[List[(S, Node[F, M, S, T])]] =
-      lfs.state.bonds.activeSet.toList.traverse { vId =>
-        for {
-          idsRef <- Ref.of(dummyIds(vId).take(numBlocks).toList)
-          hasher  = (_: Any) =>
-                      Async[F].sleep(c.hashDelay) >> idsRef.modify {
-                        case head :: tail => (tail, head)
-                        case _            => sys.error("No ids left")
-                      }
-          txMap   = (_: String) => Deploy(Map("s0" -> 1L, "s1" -> -1L))
-          r      <-
-            Node[F, M, S, T](
-              vId,
-              WeaverState.empty[M, S, T](lfs.state),
-              lfs.state,
-              hasher,
-              c.exeDelay,
-              c.stateReadTime,
-              txMap,
-              idsRef,
-            )
-              .map(vId -> _)
-        } yield r
+    /// Genesis data
+    val lazinessTolerance = 1 // c.lazinessTolerance
+    val senders           = Iterator.range(0, c.size).map(n => s"s#$n").toList
+    // Create lfs message, it has no parents, sees no offences and final fringe is empty set
+    val genesisBonds      = Bonds(senders.map(_ -> 100L).toMap)
+    val genesisExec       = FinalData(genesisBonds, lazinessTolerance, 10000)
+    val lfs               = MessageData[M, S]("s#0", Set(), Set(), FringeData(Set()), genesisExec)
+
     /// Shared block store across simulation
     val blockStore: Ref[F, Map[M, Block[M, S, T]]] = Ref.unsafe(Map.empty[M, Block[M, S, T]])
 
@@ -136,6 +127,7 @@ object NetworkSim extends IOApp {
       to    <- Random[F].elementOf(users - from)
     } yield new BalancesState(Map(from -> -txVal, to -> txVal))
 
+    def mkNode(vId: S): F[NetNode[F]] = Sync[F].defer {
       val blockSeqNumRef = Ref.unsafe(0)
       val assignBlockId  = (_: Any) => blockSeqNumRef.updateAndGet(_ + 1).map(idx => s"$vId-$idx")
 
@@ -144,29 +136,39 @@ object NetworkSim extends IOApp {
         random(users).map(st => Set(balances.data.BalancesDeploy(s"$vId-tx-$idx", st)))
       }
 
-    val senders      = Iterator.range(0, c.size).map(n => s"s#$n").toList
-    // Create lfs message, it has no parents, sees no offences and final fringe is empty set
-    val genesisBonds = Bonds(senders.map(_ -> 100L).toMap)
-    val genesisExec  = FinalData(genesisBonds, c.lazinessTolerance, 10000)
-    val lfs          = MessageData[M, S]("s#0", Set(), Set(), FringeData(Set()), genesisExec)
-    val genesisM     = {
-      val genesisTx  = List.empty[T]
-      val genesisFin = ConflictResolution[T](genesisTx.toSet, Set()).some
-      Block.WithId(
-        s"0@${senders.head}",
-        Block[M, S, T](
-          senders.head,
-          Set(),
-          Set(),
-          genesisTx,
-          Set(),
-          genesisFin,
-          Set(),
-          genesisExec.bonds,
-          genesisExec.lazinessTolerance,
-          genesisExec.expirationThreshold,
-        ),
-      )
+      val mkHistory     = sdk.history.History.create(EmptyRootHash, new InMemoryKeyValueStore[F])
+      val mkValuesStore = Sync[F].delay {
+        new ByteArrayKeyValueTypedStore[F, Blake2b256Hash, Balance](
+          new InMemoryKeyValueStore[F],
+          Blake2b256Hash.codec,
+          balanceCodec,
+        )
+      }
+
+      (mkHistory, mkValuesStore).flatMapN { case history -> valueStore =>
+        val balancesEngine   = BalancesStateBuilderWithReader(history, valueStore)
+        val fringeMappingRef = Ref.unsafe(Map(Set.empty[M] -> EmptyRootHash))
+
+        def buildState(
+          baseFringe: Set[M],
+          finalFringe: Set[M],
+          toFinalize: Set[T],
+          toMerge: Set[T],
+          toExecute: Set[T],
+        ): F[((Blake2b256Hash, Seq[T]), (Blake2b256Hash, Seq[T]))] =
+          for {
+            baseState <- fringeMappingRef.get.map(_(baseFringe))
+            r         <- mergeRejectNegativeOverflow(balancesEngine, baseState, toFinalize, toMerge ++ toExecute)
+
+            ((newFinState, finRj), (newMergeState, provRj)) = r
+
+            r <- balancesEngine.buildState(baseState, newFinState, newMergeState)
+
+            (finalHash, postHash) = r
+
+            _ <- fringeMappingRef.update(_ + (finalFringe -> finalHash))
+          } yield ((finalHash, finRj), (postHash, provRj))
+
         Node[F, M, S, T](
           vId,
           WeaverState.empty[M, S, T](lfs.state),
@@ -179,7 +181,10 @@ object NetworkSim extends IOApp {
       }
     }
 
-    val x = mkNet(lfs)
+    /** Make the computer, init all peers with lfs. */
+    def mkNet(lfs: MessageData[M, S]): F[List[NetNode[F]]] = lfs.state.bonds.activeSet.toList.traverse(mkNode)
+
+    val x: F[Stream[F, Unit]] = mkNet(lfs)
       .map(_.zipWithIndex)
       .map { net =>
         net.map {
@@ -189,10 +194,10 @@ object NetworkSim extends IOApp {
                 balancesApi,
               ) -> idx =>
             val bootstrap =
-              Stream.eval(
-                saveBlock(genesisM) *> dProc.acceptMsg(genesisM.id) >> Console[F].println(s"Bootstrap done for ${self}"),
-              )
-            val notSelf   = net.collect { case (x @ (s, _)) -> _ if s != self => s -> x._2 }
+              Stream.eval(genesisBlock[F](senders.head, genesisExec).flatMap { genesisM =>
+                saveBlock(genesisM) *> dProc.acceptMsg(genesisM.id) >> Console[F].println(s"Bootstrap done for ${self}")
+              })
+            val notSelf   = net.collect { case NetNode(id, node, _) -> _ if id != self => node }
 
             val run = dProc.dProcStream concurrently {
               dProc.output.through(broadcast(notSelf, c.propDelay))
@@ -204,10 +209,10 @@ object NetworkSim extends IOApp {
               .throughput(1.second)
               // finality is computed by each sender eventually so / c.size
               .evalTap(x => tpsRef.set(x.toFloat / c.size))
-            val getData =
-            (idx.pure, tpsRef.get, weaverStRef.get, proposerStRef.get, processorStRef.get, bufferStRef.get).mapN(
-              NetworkSnapshot.NodeSnapshot(_, _, _, _, _, _),
-            )
+            val getData   =
+              (idx.pure, tpsRef.get, weaverStRef.get, proposerStRef.get, processorStRef.get, bufferStRef.get).mapN(
+                NetworkSnapshot.NodeSnapshot(_, _, _, _, _, _),
+              )
 
             val apiServerStream: Stream[F, ExitCode] = if (idx == 0) {
               implicit val a: EntityEncoder[F, Long] = org.http4s.circe.jsonEncoderOf[F, Long]
@@ -222,7 +227,7 @@ object NetworkSim extends IOApp {
                 override def insert(blockDeploys: BlockDeploys): F[Unit]     = ().pure[F]
                 override def getByBlock(blockId: Long): F[Seq[BlockDeploys]] = Seq.empty[BlockDeploys].pure[F]
               }
-              val routes            = All[F, Long](dummyBlockDBApi, dummyDeploysDbApi, api.balances)
+              val routes            = All[F, Long](dummyBlockDBApi, dummyDeploysDbApi, balancesApi)
               http.server(routes, 8080, "localhost")
             } else Stream.empty
 
@@ -237,13 +242,13 @@ object NetworkSim extends IOApp {
           val getNetworkState = diags.sequence
           import NetworkSnapshot.*
           getNetworkState.showAnimated(samplingTime = 1.second)
-      }
+        }
 
         simStream concurrently logDiag
-  }
+      }
 
     Stream.force(x)
-    }
+  }
 
   override def run(args: List[String]): IO[ExitCode] = {
     val prompt = """
