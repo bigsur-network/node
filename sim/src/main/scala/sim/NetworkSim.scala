@@ -40,7 +40,9 @@ object NetworkSim extends IOApp {
     propDelay: Duration,
     rcvDelay: Duration,
     stateReadTime: Duration,
-    lazinessTolerance: Int,
+    // TODO for partially sync consensus
+    //    lazinessTolerance: Int,
+  )
 
   final case class NetNode[F[_]](
     id: S,
@@ -288,7 +290,7 @@ object NetworkSim extends IOApp {
           Duration(propDelay.toLong, MICROSECONDS),
           Duration(rcvDelay.toLong, MICROSECONDS),
           Duration(stateReadTime.toLong, MICROSECONDS),
-          lazinessTolerance.toInt,
+//          lazinessTolerance.toInt,
         )
 
         implicit val kts: KamonContextStore[IO] = KamonContextStore.forCatsEffectIOLocal
