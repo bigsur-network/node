@@ -48,8 +48,6 @@ object NetworkSim extends IOApp {
     balanceApi: (Blake2b256Hash, Wallet) => F[Long],
   )
 
-  // number of blocks to be produced by each sender
-  val numBlocks = 50000
   def genesisBlock[F[_]: Async: Parallel](sender: S, genesisExec: FinalData[S]): F[Block.WithId[M, S, T]] = {
     val mkHistory     = sdk.history.History.create(EmptyRootHash, new InMemoryKeyValueStore[F])
     val mkValuesStore = Sync[F].delay {
@@ -130,6 +128,18 @@ object NetworkSim extends IOApp {
       time: Duration,
     ): Pipe[F, M, Unit] = _.evalMap(m => Temporal[F].sleep(time) *> peers.traverse(_.dProc.acceptMsg(m)).void)
 
+    def random(users: Set[Wallet]): F[BalancesState] = for {
+      txVal <- Random[F].nextLongBounded(100)
+      from  <- Random[F].elementOf(users)
+      to    <- Random[F].elementOf(users - from)
+    } yield new BalancesState(Map(from -> -txVal, to -> txVal))
+
+      val blockSeqNumRef = Ref.unsafe(0)
+      val assignBlockId  = (_: Any) => blockSeqNumRef.updateAndGet(_ + 1).map(idx => s"$vId-$idx")
+
+      val txSeqNumRef = Ref.unsafe(0)
+      val nextTxs     = txSeqNumRef.updateAndGet(_ + 1).flatMap { idx =>
+        random(users).map(st => Set(balances.data.BalancesDeploy(s"$vId-tx-$idx", st)))
       }
 
     val senders      = Iterator.range(0, c.size).map(n => s"s#$n").toList
