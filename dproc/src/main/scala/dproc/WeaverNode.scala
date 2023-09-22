@@ -37,6 +37,11 @@ final case class WeaverNode[F[_]: Sync, M, S, T](state: WeaverState[M, S, T]) {
         .pure
   }
 
+  def finalizedSet(minGenJs: Set[M], fFringe: Set[M]): F[Iterator[T]] = for {
+    pf <- dag.latestFringe(minGenJs)
+    r  <- dag.between(fFringe, pf).map(_.filterNot(state.lazo.offences)).map(_.flatMap(state.meld.txsMap))
+  } yield r
+
   def resolver: Resolve[F, T] = new Resolve[F, T] {
     override def resolve(x: IterableOnce[T]): F[(Set[T], Set[T])] =
       Resolve.naive[T](x, state.meld.conflictsMap.contains).bimap(_.iterator.to(Set), _.iterator.to(Set)).pure
@@ -47,8 +52,7 @@ final case class WeaverNode[F[_]: Sync, M, S, T](state: WeaverState[M, S, T]) {
 
   def computeFsResolve(fFringe: Set[M], minGenJs: Set[M]): F[ConflictResolution[T]] =
     for {
-      pf        <- dag.latestFringe(minGenJs)
-      toResolve <- dag.between(fFringe, pf).map(_.filterNot(state.lazo.offences).flatMap(state.meld.txsMap))
+      toResolve <- finalizedSet(minGenJs, fFringe)
       r         <- resolver.resolve(toResolve)
     } yield ConflictResolution(r._1, r._2)
 
@@ -73,13 +77,12 @@ final case class WeaverNode[F[_]: Sync, M, S, T](state: WeaverState[M, S, T]) {
         .toLeft(m.finalFringe)
     })
 
-  def validateFsResolve(m: Block[M, S, T]): EitherT[F, InvalidFringeResolve[T], ConflictResolution[T]] =
-    EitherT(computeFsResolve(m.finalFringe, m.minGenJs).map { finalization =>
-      (finalization != m.finalized.getOrElse(ConflictResolution.empty[T]))
-        .guard[Option]
-        .as(InvalidFringeResolve(finalization, m.finalized.getOrElse(ConflictResolution.empty[T])))
-        .toLeft(finalization)
+  def validateFsResolve(m: Block[M, S, T]): EitherT[F, InvalidFringeResolve[T], ConflictResolution[T]] = {
+    val is = m.finalized.getOrElse(ConflictResolution.empty[T])
+    EitherT(computeFsResolve(m.finalFringe, m.minGenJs).map { shouldBe =>
+      (shouldBe != is).guard[Option].as(InvalidFringeResolve(shouldBe, is)).toLeft(is)
     })
+  }
 
   def validateGard(m: Block[M, S, T], expT: Int): EitherT[F, InvalidDoubleSpend[T], Unit] =
     EitherT(WeaverNode(state).computeGard(m.txs, m.finalFringe, expT).pure.map { txToPut =>
@@ -102,7 +105,7 @@ final case class WeaverNode[F[_]: Sync, M, S, T](state: WeaverState[M, S, T]) {
     val offences = state.lazo.offences
     for {
       lazoF   <- Sync[F].delay(WeaverNode(state).computeFringe(mgjs))
-      newF     = (lazoF.fFringe != state.lazo.latestFringe(mgjs)).guard[Option]
+      newF     = (lazoF.fFringe neqv state.lazo.latestFringe(mgjs).fFringe).guard[Option]
       fin     <- newF.traverse(_ => WeaverNode(state).computeFsResolve(lazoF.fFringe, mgjs))
       lazoE   <- exeEngine.consensusData(lazoF.fFringe)
       txToPut  = WeaverNode(state).computeGard(txs, lazoF.fFringe, lazoE.expirationThreshold)
@@ -146,11 +149,10 @@ final case class WeaverNode[F[_]: Sync, M, S, T](state: WeaverState[M, S, T]) {
       _  <- validateGard(m, lE.expirationThreshold)
       _  <- validateCsResolve(m)
 
+      toResolve <- EitherT.liftF(finalizedSet(m.minGenJs, m.finalFringe).map(_.toSet))
       base      <- EitherT.liftF(dag.latestFringe(m.minGenJs))
-      toResolve <-
-        dag.between(m.finalFringe, base).map(_.filterNot(state.lazo.offences)).map(_.flatMap(state.meld.txsMap))
-      base      <- EitherT.liftF(dag.latestFringe(m.minGenJs))
-      r         <- EitherT.liftF(exeEngine.execute(base, m.finalFringe, toResolve.toSet, m.merge, m.txs.toSet))
+
+      r <- EitherT.liftF(exeEngine.execute(base, m.finalFringe, toResolve, m.merge, m.txs.toSet))
 
       ((finalState, _), (postState, _)) = r
 
