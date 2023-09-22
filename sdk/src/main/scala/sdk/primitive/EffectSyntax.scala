@@ -1,10 +1,12 @@
 package sdk.primitive
 
 import cats.Show
-import cats.effect.kernel.Temporal
+import cats.effect.implicits.monadCancelOps_
+import cats.effect.kernel.{Async, Temporal}
 import cats.effect.std.Console
 import cats.implicits.toShow
 import fs2.Stream
+import cats.syntax.all.*
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
@@ -22,4 +24,6 @@ final class EffectOps[F[_], A](private val x: F[A]) extends AnyVal {
   ): Stream[F, Unit] =
     // \u001b[2J - clear screen
     Stream.repeatEval(x).metered(samplingTime).map(v => s"\u001b[2J${v.show}").printlns
+
+  def cede(implicit F: Async[F]): F[A] = F.cede *> x.guarantee(F.cede)
 }

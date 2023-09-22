@@ -11,6 +11,7 @@ import dproc.data.Block
 import fs2.Stream
 import sdk.merging.{DagMerge, Relation, Resolve}
 import sdk.node.Processor
+import sdk.syntax.all.effectSyntax
 import weaver.*
 import weaver.GardState.GardM
 import weaver.LazoState.isSynchronous
@@ -19,7 +20,7 @@ import weaver.data.*
 import weaver.rules.{Dag, Finality, InvalidBasic}
 import weaver.syntax.all.*
 
-final case class WeaverNode[F[_]: Sync, M, S, T](state: WeaverState[M, S, T]) {
+final case class WeaverNode[F[_]: Async, M, S, T](state: WeaverState[M, S, T]) {
   def dag: DagMerge[F, M] = new DagMerge[F, M] {
     override def between(ceil: Set[M], floor: Set[M]): F[Iterator[M]] = {
       val seqWithSender: M => (S, Int)  = (x: M) => state.lazo.dagData(x).sender -> state.lazo.dagData(x).seqNum
@@ -56,8 +57,8 @@ final case class WeaverNode[F[_]: Sync, M, S, T](state: WeaverState[M, S, T]) {
       r         <- resolver.resolve(toResolve)
     } yield ConflictResolution(r._1, r._2)
 
-  def computeGard(txs: List[T], fFringe: Set[M], expT: Int): List[T] =
-    txs.filterNot(state.gard.isDoubleSpend(_, fFringe, expT))
+  def computeGard(txs: List[T], fFringe: Set[M], expT: Int): List[T] = txs
+//    txs.filterNot(state.gard.isDoubleSpend(_, fFringe, expT))
 
   def computeCsResolve(minGenJs: Set[M], fFringe: Set[M]): F[ConflictResolution[T]] = for {
     toResolve <- dag.between(minGenJs, fFringe).map(_.filterNot(state.lazo.offences).flatMap(state.meld.txsMap))
@@ -69,13 +70,15 @@ final case class WeaverNode[F[_]: Sync, M, S, T](state: WeaverState[M, S, T]) {
     EitherT(x.map(_.toLeft(())))
   }
 
-  def validateFringe(m: Block[M, S, T]): EitherT[F, InvalidFringe[M], Set[M]] =
-    EitherT(computeFringe(m.minGenJs).pure.map { case FringeData(fFringe) =>
+  def validateFringe(m: Block[M, S, T]): EitherT[F, InvalidFringe[M], Set[M]] = {
+    val fCede = Sync[F].delay(computeFringe(m.minGenJs)).cede
+    EitherT(fCede.map { case FringeData(fFringe) =>
       (fFringe != m.finalFringe)
         .guard[Option]
         .as(InvalidFringe(fFringe, m.finalFringe))
         .toLeft(m.finalFringe)
     })
+  }
 
   def validateFsResolve(m: Block[M, S, T]): EitherT[F, InvalidFringeResolve[T], ConflictResolution[T]] = {
     val is = m.finalized.getOrElse(ConflictResolution.empty[T])
@@ -104,7 +107,7 @@ final case class WeaverNode[F[_]: Sync, M, S, T](state: WeaverState[M, S, T]) {
     val mgjs     = state.lazo.latestMGJs
     val offences = state.lazo.offences
     for {
-      lazoF   <- Sync[F].delay(WeaverNode(state).computeFringe(mgjs))
+      lazoF   <- Sync[F].delay(WeaverNode(state).computeFringe(mgjs)).cede
       newF     = (lazoF.fFringe neqv state.lazo.latestFringe(mgjs).fFringe).guard[Option]
       fin     <- newF.traverse(_ => WeaverNode(state).computeFsResolve(lazoF.fFringe, mgjs))
       lazoE   <- exeEngine.consensusData(lazoF.fFringe)
@@ -237,7 +240,7 @@ object WeaverNode {
   /**
    * Replay block and add it to the Weaver state.
    */
-  private def replayAndAdd[F[_]: Sync, M, S, T: Ordering](
+  private def replayAndAdd[F[_]: Async, M, S, T: Ordering](
     b: Block.WithId[M, S, T],
     weaverStRef: Ref[F, WeaverState[M, S, T]],
     exeEngine: ExeEngine[F, M, S, T],
@@ -264,7 +267,7 @@ object WeaverNode {
   /**
    * Propose given the latest state of the node.
    */
-  def proposeOnLatest[F[_]: Sync, M, S, T: Ordering](
+  def proposeOnLatest[F[_]: Async, M, S, T: Ordering](
     sender: S,
     weaverStRef: Ref[F, WeaverState[M, S, T]],
     readTxs: => F[Set[T]],
