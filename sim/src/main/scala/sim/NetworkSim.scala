@@ -205,7 +205,8 @@ object NetworkSim extends IOApp {
 
             val tpsRef    = Ref.unsafe[F, Float](0f)
             val tpsUpdate = dProc.finStream
-              .map(_.accepted)
+              .map(_.accepted.toList)
+              .flatMap(Stream.emits(_))
               .throughput(1.second)
               // finality is computed by each sender eventually so / c.size
               .evalTap(x => tpsRef.set(x.toFloat / c.size))
