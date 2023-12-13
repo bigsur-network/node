@@ -13,14 +13,15 @@ import fs2.{Pipe, Stream}
 import node.api.web
 import node.api.web.PublicApiJson
 import node.api.web.https4s.RouterFix
-import sdk.hashing.Blake2b
 import node.lmdb.LmdbStoreManager
 import node.{Config as NodeConfig, Node}
 import pureconfig.generic.ProductHint
 import sdk.api
 import sdk.api.data.{Bond, Deploy, Status}
 import sdk.api.{data, ExternalApi}
+import sdk.consensus.data.BondsMap
 import sdk.diag.{Metrics, SystemReporter}
+import sdk.hashing.Blake2b
 import sdk.history.ByteArray32
 import sdk.history.History.EmptyRootHash
 import sdk.history.instances.RadixHistory
@@ -122,7 +123,7 @@ object NetworkSim extends IOApp {
     val senders           =
       Iterator.range(0, netCfg.size).map(_ => Array(rnd.nextInt().toByte)).map(Blake2b.hash256).map(ByteArray(_)).toSet
     // Create lfs message, it has no parents, sees no offences and final fringe is empty set
-    val genesisBonds      = Bonds(senders.map(_ -> 100L).toMap)
+    val genesisBonds      = BondsMap(senders.map(_ -> 100L).toMap).getUnsafe
     val genesisExec       = FinalData(genesisBonds, lazinessTolerance, 10000)
     val lfs               = MessageData[M, S](ByteArray("s0".getBytes), Set(), Set(), FringeData(Set()), genesisExec)
 
@@ -285,7 +286,7 @@ object NetworkSim extends IOApp {
 
     /** Make the computer, init all peers with lfs. */
     def mkNet(lfs: MessageData[M, S]): Resource[F, List[NetNode[F]]] =
-      lfs.state.bonds.activeSet.toList.traverse(mkNode)
+      BondsMap.activeSet(lfs.state.bonds).toList.traverse(mkNode)
 
     Stream
       .resource(mkNet(lfs))

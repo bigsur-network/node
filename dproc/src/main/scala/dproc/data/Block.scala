@@ -1,5 +1,6 @@
 package dproc.data
 
+import sdk.consensus.data.BondsMap
 import weaver.GardState.GardM
 import weaver.data.*
 
@@ -27,7 +28,7 @@ final case class Block[M, S, T](
   finalFringe: Set[M],
   finalized: Option[ConflictResolution[T]],
   merge: Set[T],
-  bonds: Bonds[S],
+  bonds: BondsMap[S],
   lazTol: Int,
   expThresh: Int,
   finalStateHash: Array[Byte],

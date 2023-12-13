@@ -6,7 +6,7 @@ import cats.syntax.all.*
 import sdk.sim.BlockDagSchedule.DagNode
 import sdk.sim.{BlockDagBuilder, BlockDagSchedule}
 import sim.BlockRender.renderLazoMessage
-import weaver.data.{Bonds, FinalData, FringeData, MessageData}
+import weaver.data.{FinalData, FringeData, MessageData}
 import weaver.syntax.all.*
 import weaver.{LazoState, Offence}
 

@@ -1,10 +1,11 @@
 package weaver.rules
 
-import cats.syntax.all._
+import cats.syntax.all.*
+import sdk.consensus.data.BondsMap
 import weaver.LazoState
 import weaver.data.FringeData
 import weaver.rules.Dag.ceiling
-import weaver.syntax.all._
+import weaver.syntax.all.*
 
 object Finality {
 
@@ -17,7 +18,7 @@ object Finality {
     else {
       val view           = lazo.view(minGenJs)
       val bondsMap       = lazo.bondsMapUnsafe(minGenJs)
-      val justifications = lazo.fullJs(bondsMap.activeSet)(minGenJs)
+      val justifications = lazo.fullJs(BondsMap.activeSet(bondsMap))(minGenJs)
       val baseFringe     = lazo.latestFringe(minGenJs).fFringe
       val selfChildOpt   =
         lazo.selfChildMap.get(_: M).flatten.filter(view.contains) // filter is mandatory to constrain the view
@@ -37,12 +38,13 @@ object Finality {
         sender,
         offencesDetected,
       )
-      val allAcross        = targetFringe.map(sender) == bondsMap.activeSet
+      val allAcross        = targetFringe.map(sender) == BondsMap.activeSet(bondsMap)
       lazy val isSafe      = targetFringe
         .forall { x =>
           val jss = justifications.filter(y => seen(Set(y)).contains(x)).map(sender)
 //          println(s"Checking $jss, js: $justifications")
-          bondsMap.isSuperMajority(
+          BondsMap.isSuperMajority(
+            bondsMap,
             //            justifications.filter(y => seenAsValid(Set(y)).contains(x)).map(sender)
             jss,
           )

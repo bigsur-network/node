@@ -1,6 +1,7 @@
 package weaver.syntax
 
-import weaver.data._
+import sdk.consensus.data.BondsMap
+import weaver.data.*
 
 trait LazoMESyntax {
   implicit final def lazoMESyntax[M, S](x: MessageData.Extended[M, S]): LazoMEOps[M, S] =
@@ -24,7 +25,7 @@ final class LazoMEOps[M, S](private val x: MessageData.Extended[M, S]) extends A
 
 //  def seen: Set[M] = x.ext.seen
 
-  def baseBonds: Bonds[S] = x.ext.baseBonds
+  def baseBonds: BondsMap[S] = x.ext.baseBonds
 
   def lfIdx: Option[Int] = x.ext.lfIdx
 }

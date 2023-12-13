@@ -1,5 +1,7 @@
 package weaver.data
 
+import sdk.consensus.data.BondsMap
+
 /**
   * Minimal necessary data for a protocol message.
   *
@@ -24,7 +26,7 @@ object MessageData {
   final case class Extra[M, S](
     fjs: Set[M],
     selfJOpt: Option[M],
-    baseBonds: Bonds[S],
+    baseBonds: BondsMap[S],
     lfIdx: Option[Int],
   )
 

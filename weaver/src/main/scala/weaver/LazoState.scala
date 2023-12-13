@@ -1,6 +1,7 @@
 package weaver
 
 import cats.syntax.all.*
+import sdk.consensus.data.BondsMap
 import weaver.LazoState.*
 import weaver.Offence.InvalidFringe
 import weaver.data.*
@@ -147,7 +148,7 @@ object LazoState {
   )
 
   /** Data required for the protocol that should be provided by the execution engine. */
-  final case class ExeData[S](lazinessTolerance: Int, bondsMap: Bonds[S])
+  final case class ExeData[S](lazinessTolerance: Int, bondsMap: BondsMap[S])
 
   def empty[M, S](initExeData: FinalData[S]): LazoState[M, S] = new LazoState(
     dagData = Map.empty[M, DagData[M, S]],
@@ -228,7 +229,7 @@ object LazoState {
     val bondsMap       = latestFIdxOpt.map(state.exeData(_).bondsMap).getOrElse(m.state.bonds)
     val justifications = computeFJS(
       m.mgjs,
-      bondsMap.activeSet,
+      BondsMap.activeSet(bondsMap),
       state.dagData(_: M).jss,
       (x: M, y: M) => state.seenMap.get(x).exists(_.contains(y)),
       state.dagData(_: M).sender,
@@ -254,7 +255,7 @@ object LazoState {
       latestM <- s.latestMessages.find(x => s.dagData(x).sender == self)
       newMS    = s.dagData(latestM).jss.flatMap(s.selfChildMap)
       x        = newMS ++ s.woSelfJ.diff(s.seenMap(latestM))
-    } yield bonds.allAcross(x.map(s.dagData(_).sender))
+    } yield BondsMap.allAcross(bonds, x.map(s.dagData(_).sender))
     x.getOrElse(true)
   }
 }

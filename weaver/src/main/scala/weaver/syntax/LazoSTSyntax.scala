@@ -1,9 +1,10 @@
 package weaver.syntax
 
 import cats.data.Kleisli
-import weaver.LazoState
-import weaver.data.{Bonds, FringeData}
 import cats.syntax.all.*
+import sdk.consensus.data.BondsMap
+import weaver.LazoState
+import weaver.data.FringeData
 import weaver.rules.Dag.{computeFJS, computeMGJS}
 import weaver.rules.Finality
 
@@ -19,18 +20,18 @@ final class LazoSTOps[M, S](private val s: LazoState[M, S]) {
     x.map(s.dagData(_: M).fringeIdx).maxOption.map(s.fringes).map(FringeData(_)).getOrElse(FringeData.empty[M])
 
   // latest bonds map for a view defined by mgjs
-  def bondsMap(mgjs: Set[M]): Option[Bonds[S]] =
+  def bondsMap(mgjs: Set[M]): Option[BondsMap[S]] =
     Kleisli(lfIdxOpt)
-      .andThen(Kleisli[Option, Int, Bonds[S]](s.exeData(_: Int).bondsMap.some))
+      .andThen(Kleisli[Option, Int, BondsMap[S]](s.exeData(_: Int).bondsMap.some))
       .run(mgjs)
 
-  def bondsMapUnsafe(mgjs: Set[M]): Bonds[S] = {
+  def bondsMapUnsafe(mgjs: Set[M]): BondsMap[S] = {
     val x = bondsMap(mgjs)
     assert(x.nonEmpty, "Messages of minimal generative set is missing from the state.")
     x.get
   }
 
-  def fjsOpt(mgjs: Set[M]): Option[Set[M]] = bondsMap(mgjs).map(_.activeSet).map(fullJs(_)(mgjs))
+  def fjsOpt(mgjs: Set[M]): Option[Set[M]] = bondsMap(mgjs).map(BondsMap.activeSet).map(fullJs(_)(mgjs))
 
   // derive full justification set from mgjs
   def fullJs(activeSet: Set[S]): Set[M] => Set[M] =
@@ -46,7 +47,7 @@ final class LazoSTOps[M, S](private val s: LazoState[M, S]) {
   def mgjs(fullJs: Set[M]): Set[M] = computeMGJS(fullJs, (x: M, y: M) => s.seenMap.get(x).exists(_.contains(y)))
 
   def selfJOpt(mgjs: Set[M], sender: S): Option[M] =
-    bondsMap(mgjs).map(_.activeSet).flatMap(x => selfJOpt(x, sender, mgjs))
+    bondsMap(mgjs).map(BondsMap.activeSet).flatMap(x => selfJOpt(x, sender, mgjs))
 
   // self justification option
   def selfJOpt(activeSet: Set[S], sender: S, mgjs: Set[M]): Option[M] =

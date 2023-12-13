@@ -1,8 +1,9 @@
 package weaver.syntax
 
+import sdk.consensus.data.BondsMap
 import weaver.LazoState
+import weaver.data.MessageData
 import weaver.data.MessageData.Extra
-import weaver.data.{Bonds, MessageData}
 import weaver.syntax.all.*
 
 trait LazoMSyntax {
@@ -17,7 +18,7 @@ final class LazoMOps[M, S](private val x: MessageData[M, S]) extends AnyVal {
 
   def seen(implicit state: LazoState[M, S]): Set[M] = state.view(x.mgjs)
 
-  def baseBonds(implicit state: LazoState[M, S]): Bonds[S] =
+  def baseBonds(implicit state: LazoState[M, S]): BondsMap[S] =
     state.bondsMap(x.mgjs).getOrElse(x.state.bonds)
 
   def lfIdx(implicit state: LazoState[M, S]): Option[Int] = state.lfIdxOpt(x.mgjs)
