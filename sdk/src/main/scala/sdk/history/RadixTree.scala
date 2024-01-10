@@ -1,8 +1,9 @@
 package sdk.history
 
 import cats.Parallel
-import cats.effect.Sync
+import cats.effect.{Concurrent, Ref, Sync}
 import cats.syntax.all.*
+import fs2.Stream
 import sdk.history.KeySegment.*
 import sdk.primitive.ByteArray
 import sdk.store.KeyValueTypedStore
@@ -536,6 +537,34 @@ object RadixTree {
   }
 
   /**
+   * Concurrent traverse tree, return all tree data
+   * @param startNodes Root vertices of exported trees
+   * @param getNext Get value and all children for this node
+   * @return Stream KV-pairs
+   */
+  def parTreeTraverse[F[_]: Parallel: Concurrent, K, V](
+    startNodes: Seq[K],
+    getNext: K => F[(V, Seq[K])],
+  ): Stream[F, (K, V)] =
+    Stream.eval[F, Ref[F, Set[K]]](Ref.of[F, Set[K]](Set.empty)).flatMap { ref =>
+      def loop(nodeKeys: Seq[K]): Stream[F, (K, V)] = {
+        val streamsF: F[Seq[Stream[F, (K, V)]]] = nodeKeys.parTraverse { curKey =>
+          ref.flatModify { alreadyProcessed =>
+            if (alreadyProcessed.contains(curKey)) (alreadyProcessed, Concurrent[F].pure(Stream.empty))
+            else {
+              val streams = getNext(curKey).map { case (curValue, childKeys) =>
+                Stream.emit((curKey, curValue)) ++ loop(childKeys)
+              }
+              (alreadyProcessed + curKey, streams)
+            }
+          }
+        }
+        Stream.eval(streamsF).flatMap(Stream.emits).parJoinUnbounded
+      }
+      loop(startNodes)
+    }
+
+  /**
     * Radix Tree implementation
     * Is a data structure that stores and links together a set
     * of N KV-pairs (radixKey, radixValue): (key0, value0), (key1, value1), ..., (keyN-1, valueN-1).
@@ -569,6 +598,21 @@ object RadixTree {
       */
     private def loadNodeFromStore(nodePtr: ByteArray32): F[Option[Node]] =
       store.get1(nodePtr).map(_.map(Codecs.decode))
+
+    /**
+     * Load serialized data for a node from store, decode and find all children.
+     * @param nodePtr Node key in store
+     * @return None - if a node with such a key is not found;
+     *         or Some(serialized data, list of child node keys)
+     */
+    def getNextForTraverse(nodePtr: ByteArray32): F[Option[(ByteArray, List[ByteArray32])]] =
+      store
+        .get1(nodePtr)
+        .map(_.map { nodeBytes =>
+          val node      = Codecs.decode(nodeBytes)
+          val childPtrs = node.collect { case NodePtr(_, ptr) => ptr }
+          (nodeBytes, childPtrs.toList)
+        })
 
     /**
       * Cache for storing read and decoded nodes.
