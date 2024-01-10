@@ -12,6 +12,8 @@ final case class Config(
   enableInfluxDb: Boolean = false,
   @Description("Enable dev mode. WARNING: This mode is not secure and should not be used in production.")
   devMode: Boolean = false,
+  @Description("WebApi configuration")
+  webApi: node.api.web.Config = node.api.web.Config("localhost", 8080),
 )
 
 object Config {

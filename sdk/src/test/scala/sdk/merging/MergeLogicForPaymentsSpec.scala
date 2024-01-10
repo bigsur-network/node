@@ -1,11 +1,11 @@
-package sim.balances
+package sdk.merging
 
 import cats.syntax.all.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import sdk.data.{BalancesDeploy, BalancesDeployBody, BalancesState}
+import sdk.merging.MergeLogicForPayments.{attemptCombine, foldCollectFailures}
 import sdk.primitive.ByteArray
-import sim.balances.MergeLogicForPayments.*
-import sim.balances.data.{BalancesDeploy, BalancesDeployBody, BalancesState}
 
 class MergeLogicForPaymentsSpec extends AnyFlatSpec with Matchers {
 

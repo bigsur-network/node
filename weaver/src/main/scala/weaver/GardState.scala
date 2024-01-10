@@ -1,9 +1,10 @@
 package weaver
 
-import weaver.GardState._
+import weaver.GardState.*
 
 import scala.collection.immutable.SortedMap
 
+/** TODO cleanup state */
 final case class GardState[M, T](
   fringeIndices: Map[Set[M], Int],
   txsByFringe: SortedMap[Int, Set[T]],

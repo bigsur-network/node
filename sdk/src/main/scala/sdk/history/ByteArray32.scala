@@ -22,7 +22,10 @@ object ByteArray32 {
 
   val Length: Int = 32
 
-  def convert(bytes: ByteArray): Try[ByteArray32]   = Try(new ByteArray32(bytes))
+  def convert(bytes: ByteArray): Try[ByteArray32]   = Try {
+    assert(s"${bytes.length}" == s"${Length}", s"Cannot create ByteArray32 from byte array of size ${bytes.length}")
+    new ByteArray32(bytes)
+  }
   def convert(bytes: Array[Byte]): Try[ByteArray32] = convert(ByteArray(bytes))
 
   def codec: Codec[ByteArray32, ByteArray] = new Codec[ByteArray32, ByteArray] {

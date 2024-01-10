@@ -5,7 +5,6 @@ import cats.effect.Ref
 import cats.effect.kernel.{Async, Sync}
 import cats.syntax.all.*
 import cats.{Applicative, Monad}
-import diagnostics.syntax.all.kamonSyntax
 import dproc.DProc.ExeEngine
 import dproc.WeaverNode.{validateExeData, ReplayResult}
 import dproc.data.Block
@@ -13,6 +12,7 @@ import fs2.Stream
 import sdk.diag.Metrics
 import sdk.merging.{DagMerge, Relation, Resolve}
 import sdk.node.Processor
+import sdk.primitive.ByteArray
 import sdk.syntax.all.*
 import weaver.*
 import weaver.GardState.GardM
@@ -134,8 +134,8 @@ final case class WeaverNode[F[_]: Sync: Metrics, M, S, T](state: WeaverState[M, 
       bonds = lazoE.bonds,
       lazTol = lazoE.lazinessTolerance,
       expThresh = lazoE.expirationThreshold,
-      finalStateHash = finalStateHash,
-      postStateHash = postStateHash,
+      finalStateHash = finalStateHash.bytes,
+      postStateHash = postStateHash.bytes,
     )
   }
 
@@ -159,13 +159,18 @@ final case class WeaverNode[F[_]: Sync: Metrics, M, S, T](state: WeaverState[M, 
 
       ((finalState, _), (postState, _)) = r
 
-      _ <-
-        EitherT.fromOption(
-          (java.util.Arrays.equals(finalState, m.finalStateHash) &&
-            java.util.Arrays.equals(postState, m.postStateHash))
-            .guard[Option],
-          Offence.iexec,
-        )
+      _ <- EitherT
+             .fromOption(
+               (finalState == ByteArray(m.finalStateHash)).guard[Option],
+               InvalidFinalState(finalState, ByteArray(m.finalStateHash)),
+             )
+             .leftWiden[Offence]
+      _ <- EitherT
+             .fromOption(
+               (postState == ByteArray(m.postStateHash)).guard[Option],
+               InvalidPostState(postState, ByteArray(m.postStateHash)),
+             )
+             .leftWiden[Offence]
     } yield ()
 
   def createBlockWithId(

@@ -27,4 +27,7 @@ object ProtoPrimitiveReader {
       def readString: Eval[String] = Eval.always(cis.readString())
     }
   }
+
+  def decodeWith[A](ba: Array[Byte], read: PrimitiveReader[Eval] => Eval[A]): Eval[A] =
+    ProtoCodec.decode(ba, ProtoPrimitiveReader.apply _ andThen read)
 }

@@ -24,8 +24,7 @@ object Offence {
   final case class InvalidResolution[T](shouldBe: Set[T]) extends Offence
 
   // Message computes invalid blockchain state hash
-  final case class InvalidExec() extends Offence
-
-  def iexec: Offence = InvalidExec()
-
+  final case class InvalidPreState[A](shouldBe: A, is: A)   extends Offence
+  final case class InvalidFinalState[A](shouldBe: A, is: A) extends Offence
+  final case class InvalidPostState[A](shouldBe: A, is: A)  extends Offence
 }

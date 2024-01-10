@@ -1,11 +1,12 @@
-package sim.balances
+package sdk.merging
 
 import cats.effect.kernel.Sync
 import cats.syntax.all.*
+import sdk.data.{BalancesDeploy, BalancesState}
 import sdk.diag.Metrics
 import sdk.history.ByteArray32
+import sdk.primitive.ByteArray
 import sdk.syntax.all.{effectSyntax, mapSyntax}
-import sim.balances.data.{BalancesDeploy, BalancesState}
 
 object MergeLogicForPayments {
 
@@ -45,17 +46,17 @@ object MergeLogicForPayments {
    * Merge deploys into the base state rejecting those leading to overflow.
    * */
   def mergeRejectNegativeOverflow[F[_]: Sync: Metrics](
-    reader: BalancesStateBuilderWithReader[F],
+    readBaseBalance: (ByteArray32, ByteArray) => F[Option[Long]],
     baseState: ByteArray32,
     toFinalize: Set[BalancesDeploy],
     toMerge: Set[BalancesDeploy],
   ): F[((BalancesState, Seq[BalancesDeploy]), (BalancesState, Seq[BalancesDeploy]))] = Sync[F].defer {
-    val adjustedInFinal: Set[Wallet] = toFinalize.flatMap(_.body.state.diffs.keys)
-    val adjustedInMerge: Set[Wallet] = toMerge.flatMap(_.body.state.diffs.keys)
-    val adjustedAll: Set[Wallet]     = adjustedInFinal ++ adjustedInMerge
+    val adjustedInFinal: Set[ByteArray] = toFinalize.flatMap(_.body.state.diffs.keys)
+    val adjustedInMerge: Set[ByteArray] = toMerge.flatMap(_.body.state.diffs.keys)
+    val adjustedAll: Set[ByteArray]     = adjustedInFinal ++ adjustedInMerge
 
     val readAllBalances = adjustedAll.toList
-      .traverse(k => reader.readBalance(baseState, k).map(_.getOrElse(0L)).map(k -> _))
+      .traverse(k => readBaseBalance(baseState, k).map(_.getOrElse(0L)).map(k -> _))
       .map(_.toMap)
 
     readAllBalances

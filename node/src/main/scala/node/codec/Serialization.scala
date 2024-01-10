@@ -1,16 +1,29 @@
-package sim.balances
+package node.codec
 
 import cats.Monad
 import cats.syntax.all.*
 import dproc.data.Block
-import sdk.api.data.TokenTransferRequest
-import sdk.codecs.{PrimitiveReader, PrimitiveWriter, Serialize}
+import sdk.api.data.{Balance, TokenTransferRequest}
+import sdk.codecs.protobuf.ProtoCodec
+import sdk.codecs.{Codec, PrimitiveReader, PrimitiveWriter, Serialize}
+import sdk.data.{BalancesDeploy, BalancesDeployBody, BalancesState}
 import sdk.primitive.ByteArray
-import sim.balances.data.{BalancesDeploy, BalancesDeployBody, BalancesState}
-import sim.NetworkSim.*
 import weaver.data.ConflictResolution
 
+import scala.math.Numeric.LongIsIntegral
+
+// TODO should we use Magnolia or other derivation tool to not write binary protocols manually? Or macros?
 object Serialization {
+
+  implicit val balanceCodec: Codec[Balance, ByteArray] = ProtoCodec.apply[Balance](
+    b => r => r.write(b.x),
+    r => r.readLong.map(new Balance(_)),
+  )
+
+  implicit def balanceSerialize[F[_]: Monad]: Serialize[F, Balance] = new Serialize[F, Balance] {
+    override def write(x: Balance): PrimitiveWriter[F] => F[Unit] = (w: PrimitiveWriter[F]) => w.write(x.x)
+    override def read: PrimitiveReader[F] => F[Balance]           = (r: PrimitiveReader[F]) => r.readLong.map(new Balance(_))
+  }
 
   implicit def balancesStateSerialize[F[_]: Monad]: Serialize[F, BalancesState] =
     new Serialize[F, BalancesState] {
@@ -50,55 +63,56 @@ object Serialization {
 
   implicit def balancesDeploySerialize[F[_]: Monad]: Serialize[F, BalancesDeploy] =
     new Serialize[F, BalancesDeploy] {
-      override def write(x: T): PrimitiveWriter[F] => F[Unit] = (w: PrimitiveWriter[F]) =>
+      override def write(x: BalancesDeploy): PrimitiveWriter[F] => F[Unit] = (w: PrimitiveWriter[F]) =>
         x match {
           case BalancesDeploy(id, body) => w.write(id.bytes) *> balancesDeployBodySerialize[F].write(body)(w)
         }
 
-      override def read: PrimitiveReader[F] => F[T] = (r: PrimitiveReader[F]) =>
+      override def read: PrimitiveReader[F] => F[BalancesDeploy] = (r: PrimitiveReader[F]) =>
         for {
           id   <- r.readBytes
           body <- balancesDeployBodySerialize[F].read(r)
         } yield BalancesDeploy(ByteArray(id), body)
     }
 
-  implicit def blockSerialize[F[_]: Monad]: Serialize[F, Block[M, S, T]] =
-    new Serialize[F, Block[M, S, T]] {
-      override def write(x: Block[M, S, T]): PrimitiveWriter[F] => F[Unit] = (w: PrimitiveWriter[F]) =>
-        x match {
-          case Block(
-                sender,
-                minGenJs,
-                offences,
-                txs,
-                finalFringe,
-                finalized,
-                merge,
-                bonds,
-                lazTol,
-                expThresh,
-                finalStateHash,
-                postStateHash,
-              ) =>
-            w.write(sender.bytes) *>
-              minGenJs.toList.sorted.traverse_(x => w.write(x.bytes)) *>
-              offences.toList.sorted.traverse_(x => w.write(x.bytes)) *>
-              txs.sorted.traverse_(x => balancesDeploySerialize.write(x)(w)) *>
-              finalFringe.toList.sorted.traverse_(x => w.write(x.bytes)) *>
-              finalized.traverse_ { case ConflictResolution(accepted, rejected) =>
-                accepted.toList.sorted.traverse_(x => balancesDeploySerialize.write(x)(w)) *>
-                  rejected.toList.sorted.traverse_(x => balancesDeploySerialize.write(x)(w))
-              } *>
-              merge.toList.sorted.traverse_(x => balancesDeploySerialize.write(x)(w)) *>
-              bonds.bonds.toList.sorted.traverse_ { case (k, v) => w.write(k.bytes) *> w.write(v) } *>
-              w.write(lazTol) *>
-              w.write(expThresh) *>
-              w.write(finalStateHash) *>
-              w.write(postStateHash)
-        }
+  implicit def blockSerialize[F[_]: Monad]: Serialize[F, Block[ByteArray, ByteArray, BalancesDeploy]] =
+    new Serialize[F, Block[ByteArray, ByteArray, BalancesDeploy]] {
+      override def write(x: Block[ByteArray, ByteArray, BalancesDeploy]): PrimitiveWriter[F] => F[Unit] =
+        (w: PrimitiveWriter[F]) =>
+          x match {
+            case Block(
+                  sender,
+                  minGenJs,
+                  offences,
+                  txs,
+                  finalFringe,
+                  finalized,
+                  merge,
+                  bonds,
+                  lazTol,
+                  expThresh,
+                  finalStateHash,
+                  postStateHash,
+                ) =>
+              w.write(sender.bytes) *>
+                minGenJs.toList.sorted.traverse_(x => w.write(x.bytes)) *>
+                offences.toList.sorted.traverse_(x => w.write(x.bytes)) *>
+                txs.sorted.traverse_(x => balancesDeploySerialize.write(x)(w)) *>
+                finalFringe.toList.sorted.traverse_(x => w.write(x.bytes)) *>
+                finalized.traverse_ { case ConflictResolution(accepted, rejected) =>
+                  accepted.toList.sorted.traverse_(x => balancesDeploySerialize.write(x)(w)) *>
+                    rejected.toList.sorted.traverse_(x => balancesDeploySerialize.write(x)(w))
+                } *>
+                merge.toList.sorted.traverse_(x => balancesDeploySerialize.write(x)(w)) *>
+                bonds.bonds.toList.sorted.traverse_ { case (k, v) => w.write(k.bytes) *> w.write(v) } *>
+                w.write(lazTol) *>
+                w.write(expThresh) *>
+                w.write(finalStateHash) *>
+                w.write(postStateHash)
+          }
 
-      override def read: PrimitiveReader[F] => F[Block[M, S, T]] = ??? // not required for now
-
+      override def read: PrimitiveReader[F] => F[Block[ByteArray, ByteArray, BalancesDeploy]] =
+        ??? // not required for now
     }
 
   implicit def tokenTransferRequestBodySerialize[F[_]: Monad]: Serialize[F, TokenTransferRequest.Body] =

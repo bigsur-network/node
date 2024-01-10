@@ -11,6 +11,7 @@ import sdk.DagCausalQueue
 import sdk.diag.Metrics
 import sdk.merging.Relation
 import sdk.node.{Processor, Proposer}
+import sdk.primitive.ByteArray
 import weaver.WeaverState
 import weaver.data.{ConflictResolution, FinalData}
 
@@ -44,7 +45,7 @@ object DProc {
       toFinalize: Set[T],
       toMerge: Set[T],
       txs: Set[T],
-    ): F[((Array[Byte], Seq[T]), (Array[Byte], Seq[T]))]
+    ): F[((ByteArray, Seq[T]), (ByteArray, Seq[T]))]
 
     // data read from the final state associated with the final fringe
     def consensusData(fringe: Set[M]): F[FinalData[S]]

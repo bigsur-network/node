@@ -11,7 +11,7 @@ import sdk.api.data.TokenTransferRequest
 import sdk.codecs.Digest
 import sdk.crypto.ECDSA
 import secp256k1.Secp256k1
-import sim.balances.Hashing.*
+import node.codec.Hashing.*
 
 class TokenTransferValidationSpec extends AnyFlatSpec with Matchers {
 

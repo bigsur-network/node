@@ -1,4 +1,4 @@
-package sim.balances.data
+package sdk.data
 
 import sdk.codecs.Digest
 import sdk.primitive.ByteArray

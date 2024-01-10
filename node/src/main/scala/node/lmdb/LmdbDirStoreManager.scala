@@ -1,6 +1,6 @@
 package node.lmdb
 
-import cats.effect.{Async, Deferred, Ref, Sync}
+import cats.effect.{Async, Deferred, Ref, Resource, Sync}
 import cats.syntax.all.*
 import node.lmdb.LmdbDirStoreManager.{Db, LmdbEnvConfig}
 import sdk.store.{KeyValueStore, KeyValueStoreManager}
@@ -8,14 +8,11 @@ import sdk.store.{KeyValueStore, KeyValueStoreManager}
 import java.nio.file.Path
 
 object LmdbDirStoreManager {
-  // TODO: Return instance as Resource with the call to _shutdown_.
-  //  Shutdown can also be removed from the interface and be only
-  //  implemented as instance method if applicable.
   def apply[F[_]: Async](
     dirPath: Path,
     dbInstanceMapping: Map[Db, LmdbEnvConfig],
-  ): F[KeyValueStoreManager[F]] =
-    Sync[F].delay(new LmdbDirStoreManager(dirPath, dbInstanceMapping))
+  ): Resource[F, KeyValueStoreManager[F]] =
+    Resource.make(Sync[F].delay(new LmdbDirStoreManager(dirPath, dbInstanceMapping)))(_.shutdown)
 
   /**
     * Specification for LMDB database: unique identifier and database name
@@ -26,9 +23,9 @@ object LmdbDirStoreManager {
   final case class Db(id: String, nameOverride: Option[String] = none)
 
   // Mega, giga and tera bytes
-  val mb = 1024L * 1024L
-  val gb = 1024L * mb
-  val tb = 1024L * gb
+  private val mb = 1024L * 1024L
+  private val gb = 1024L * mb
+  val tb: Long   = 1024L * gb
 
   final case class LmdbEnvConfig(
     name: String,
@@ -70,7 +67,7 @@ final private case class LmdbDirStoreManager[F[_]: Async](
       database                  <- manager.store(dataBaseName)
     } yield database
 
-  private def createLmdbManger(config: LmdbEnvConfig, defer: Deferred[F, KeyValueStoreManager[F]]) =
+  private def createLmdbManger(config: LmdbEnvConfig, defer: Deferred[F, KeyValueStoreManager[F]]): F[Unit] =
     for {
       manager <- LmdbStoreManager(dirPath.resolve(config.name), config.maxEnvSize)
       _       <- defer.complete(manager)
