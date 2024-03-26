@@ -1,10 +1,10 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer.processes
 
 import cats.effect.Sync
-import cats.syntax.all._
-import io.rhonix.rholang._
-import io.rhonix.rholang.ast.rholang.Absyn._
+import cats.syntax.all.*
+import io.rhonix.rholang.ast.rholang.Absyn.*
 import coop.rchain.rholang.interpreter.compiler.{ProcVisitInputs, ProcVisitOutputs}
+import io.rhonix.rholang.types.{ConnBigIntN, ConnBoolN, ConnByteArrayN, ConnIntN, ConnStringN, ConnUriN, ParN}
 
 object PSimpleTypeNormalizer {
   def normalize[F[_]: Sync](p: PSimpleType, input: ProcVisitInputs): F[ProcVisitOutputs] =

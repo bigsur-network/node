@@ -1,12 +1,12 @@
 package coop.rchain.rholang.interpreter.compiler
 
 import cats.effect.Sync
-import cats.syntax.all._
-import coop.rchain.models._
-import io.rhonix.rholang._
-import io.rhonix.rholang.ast.rholang.Absyn._
-import coop.rchain.rholang.interpreter.compiler.normalizer.processes._
-import coop.rchain.rholang.interpreter.errors._
+import cats.syntax.all.*
+import coop.rchain.models.*
+import io.rhonix.rholang.ast.rholang.Absyn.*
+import coop.rchain.rholang.interpreter.compiler.normalizer.processes.*
+import coop.rchain.rholang.interpreter.errors.*
+import io.rhonix.rholang.types.*
 
 sealed trait VarSort
 case object ProcSort extends VarSort

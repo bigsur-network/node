@@ -1596,7 +1596,7 @@ class DebruijnInterpreter[M[_]: Sync: Parallel: CostStateRef](
 
   private def evalSingleExpr(p: Par)(implicit env: Env[Par]): M[Expr] =
     if (p.sends.nonEmpty || p.receives.nonEmpty || p.news.nonEmpty || p.matches.nonEmpty || p.unforgeables.nonEmpty || p.bundles.nonEmpty)
-      ReduceError("Error: parallel or non expression found where expression expected.")
+      ReduceError("Error: [evalSingleExpr] parallel or non expression found where expression expected.")
         .raiseError[M, Expr]
     else
       p.exprs match {
@@ -1608,7 +1608,7 @@ class DebruijnInterpreter[M[_]: Sync: Parallel: CostStateRef](
       p: Par
   )(implicit env: Env[Par]): M[Long] =
     if (p.sends.nonEmpty || p.receives.nonEmpty || p.news.nonEmpty || p.matches.nonEmpty || p.unforgeables.nonEmpty || p.bundles.nonEmpty)
-      ReduceError("Error: parallel or non expression found where expression expected.")
+      ReduceError("Error: [evalToLong] parallel or non expression found where expression expected.")
         .raiseError[M, Long]
     else
       p.exprs match {
@@ -1638,7 +1638,7 @@ class DebruijnInterpreter[M[_]: Sync: Parallel: CostStateRef](
       p: Par
   )(implicit env: Env[Par]): M[Boolean] =
     if (p.sends.nonEmpty || p.receives.nonEmpty || p.news.nonEmpty || p.matches.nonEmpty || p.unforgeables.nonEmpty || p.bundles.nonEmpty)
-      ReduceError("Error: parallel or non expression found where expression expected.")
+      ReduceError("Error: [evalToBool] parallel or non expression found where expression expected.")
         .raiseError[M, Boolean]
     else
       p.exprs match {

@@ -3,7 +3,7 @@ package sdk.hashing
 import org.bouncycastle.crypto.digests.Blake2bDigest
 
 object Blake2b {
-  final private val HashSize = 32
+  final val HashSize = 32
 
   @SuppressWarnings(Array("org.wartremover.warts.NonUnitStatements"))
   def hash256(input: Array[Byte]): Array[Byte] = {

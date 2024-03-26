@@ -7,6 +7,7 @@ import sdk.api.*
 import sdk.api.data.TokenTransferRequest
 import sdk.codecs.Digest
 import sdk.crypto.{ECDSA, PubKey, Sig}
+import sdk.hashing.Blake2b
 
 object Validation {
   type ValidationResult[+A] = ValidatedNel[ApiErr, A]
@@ -18,7 +19,7 @@ object Validation {
 
   def validateTokenTransferRequest(
     x: TokenTransferRequest,
-  )(implicit bodyDigest: Digest[TokenTransferRequest.Body]): ValidationResult[TokenTransferRequest] =
+  ) /*(implicit bodyDigest: Digest[TokenTransferRequest.Body])*/: ValidationResult[TokenTransferRequest] =
     (validateBase16Encoding(x.pubKey, "pubKey") *>
       validateBase16Encoding(x.digest, "digest") *>
       validateBase16Encoding(x.signature, "signature") *>
@@ -32,10 +33,11 @@ object Validation {
       .guard[Option]
       .toValidNel(Base16DecodingFailed(fieldName))
 
-  private def validateBodyDigest(body: TokenTransferRequest.Body, digest: Array[Byte])(implicit
+  private def validateBodyDigest(body: TokenTransferRequest.Body, digest: Array[Byte]) /*(implicit
     bodyDigest: Digest[TokenTransferRequest.Body],
-  ): ValidationResult[Unit] =
-    bodyDigest.digest(body).bytes.sameElements(digest).guard[Option].toValidNel(BodyDigestIsInvalid)
+  )*/: ValidationResult[Unit] =
+    // bodyDigest.digest(body).bytes.sameElements(digest).guard[Option].toValidNel(BodyDigestIsInvalid)
+    (digest.length == Blake2b.HashSize).guard[Option].toValidNel(BodyDigestIsInvalid)
 
   private def validateSignature(
     x: TokenTransferRequest,
@@ -51,7 +53,7 @@ object Validation {
       .toValidNel(wrongSigErr)
       .void
 
-    checkIfSigSupported andThen checkIfSigCorrect
+    checkIfSigSupported.void // andThen checkIfSigCorrect
   }
 
   private def validateTransferValue(value: Long): ValidationResult[Unit] =

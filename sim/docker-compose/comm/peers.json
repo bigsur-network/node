@@ -1,0 +1,26 @@
+[
+  {
+    "host" : "node0",
+    "port" : 5555,
+    "isSelf" : false,
+    "isValidator" : true
+  },
+  {
+    "host" : "node1",
+    "port" : 5555,
+    "isSelf" : false,
+    "isValidator" : true
+  },
+  {
+    "host" : "node2",
+    "port" : 5555,
+    "isSelf" : false,
+    "isValidator" : true
+  },
+  {
+    "host" : "node3",
+    "port" : 5555,
+    "isSelf" : false,
+    "isValidator" : true
+  }
+]

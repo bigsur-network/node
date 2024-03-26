@@ -4,7 +4,6 @@ import cats.Show
 import cats.effect.Sync
 import cats.effect.kernel.{Async, Temporal}
 import cats.effect.std.Console
-import cats.implicits.toShow
 import cats.syntax.all.*
 import cats.effect.syntax.all.*
 import fs2.Stream

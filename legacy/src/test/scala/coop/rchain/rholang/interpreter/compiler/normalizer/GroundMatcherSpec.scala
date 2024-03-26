@@ -2,8 +2,8 @@ package coop.rchain.rholang.interpreter.compiler.normalizer
 
 import cats.Eval
 import coop.rchain.catscontrib.effect.implicits.sEval
-import io.rhonix.rholang._
-import io.rhonix.rholang.ast.rholang.Absyn._
+import io.rhonix.rholang.ast.rholang.Absyn.*
+import io.rhonix.rholang.types.{GBigIntN, GIntN, GStringN, GUriN}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

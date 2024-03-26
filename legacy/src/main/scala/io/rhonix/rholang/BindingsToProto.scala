@@ -10,6 +10,7 @@ import coop.rchain.models.Var.VarInstance.*
 import coop.rchain.models.Var.WildcardMsg
 import coop.rchain.models.*
 import coop.rchain.models.rholang.implicits.*
+import io.rhonix.rholang.types.*
 
 import scala.annotation.unused
 import scala.collection.immutable.BitSet

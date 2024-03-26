@@ -1,5 +1,6 @@
 package dproc.data
 
+import sdk.primitive.ByteArray
 import weaver.GardState.GardM
 import weaver.data.*
 
@@ -23,15 +24,15 @@ final case class Block[M, S, T](
   sender: S,
   minGenJs: Set[M],
   offences: Set[M],
-  txs: List[T],
+  txs: List[T], // TODO: change to Set[T]
   finalFringe: Set[M],
   finalized: Option[ConflictResolution[T]],
   merge: Set[T],
   bonds: Bonds[S],
   lazTol: Int,
   expThresh: Int,
-  finalStateHash: Array[Byte],
-  postStateHash: Array[Byte],
+  finalStateHash: ByteArray,
+  postStateHash: ByteArray,
 )
 
 object Block {

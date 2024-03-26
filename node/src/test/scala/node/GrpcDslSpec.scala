@@ -3,6 +3,7 @@ package node
 import com.google.protobuf.{CodedInputStream, CodedOutputStream}
 import io.grpc.*
 import io.grpc.netty.{NettyChannelBuilder, NettyServerBuilder}
+import org.apache.commons.io.input.QueueInputStream
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -19,8 +20,8 @@ class GrpcDslSpec extends AnyFlatSpec with Matchers {
   //       e.g. validating the message header like version or signature
   val myObjMarshal = new MethodDescriptor.Marshaller[MyObj] {
     override def stream(obj: MyObj): InputStream = {
-      val pipeInput   = new PipedInputStream
-      val pipeOut     = new PipedOutputStream(pipeInput)
+      val pipeInput   = new QueueInputStream()
+      val pipeOut     = pipeInput.newQueueOutputStream()
       // Writes serialized fields to output stream (input stream for gRPC)
       val protoStream = CodedOutputStream.newInstance(pipeOut)
       protoStream.writeString(1, obj.text)

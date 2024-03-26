@@ -1,14 +1,11 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer
 
 import cats.effect.Sync
-import cats.syntax.all._
-import coop.rchain.models.Var
-import coop.rchain.models.Var.VarInstance.FreeVar
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
-import io.rhonix.rholang.ast.rholang.Absyn._
-import coop.rchain.rholang.interpreter.compiler._
+import cats.syntax.all.*
+import io.rhonix.rholang.ast.rholang.Absyn.*
+import coop.rchain.rholang.interpreter.compiler.*
 import coop.rchain.rholang.interpreter.errors.UnexpectedReuseOfProcContextFree
+import io.rhonix.rholang.types.{FreeVarN, VarN, WildcardN}
 
 object RemainderNormalizeMatcher {
   def handleProcVar[F[_]: Sync](

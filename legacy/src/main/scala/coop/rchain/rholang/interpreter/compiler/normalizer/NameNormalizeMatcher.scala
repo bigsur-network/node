@@ -1,13 +1,12 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer
 
 import cats.effect.Sync
-import cats.syntax.all._
+import cats.syntax.all.*
 import coop.rchain.models.Par
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
 import io.rhonix.rholang.ast.rholang.Absyn.{Name, NameQuote, NameVar, NameWildcard}
-import coop.rchain.rholang.interpreter.compiler._
+import coop.rchain.rholang.interpreter.compiler.*
 import coop.rchain.rholang.interpreter.errors.{UnexpectedNameContext, UnexpectedReuseOfNameContextFree}
+import io.rhonix.rholang.types.{BoundVarN, FreeVarN, NilN, WildcardN}
 
 object NameNormalizeMatcher {
   def normalizeMatch[F[_]: Sync](n: Name, input: NameVisitInputs)(implicit

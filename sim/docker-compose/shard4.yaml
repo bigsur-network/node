@@ -1,0 +1,94 @@
+version: '3.8'
+
+x-node: &default-node
+  image: node:0.1.0-SNAPSHOT
+  environment:
+    JAVA_OPTS: >
+      -Dcom.sun.management.jmxremote.port=9001
+      -Dcom.sun.management.jmxremote.rmi.port=9001
+      -Dcom.sun.management.jmxremote.local.only=false
+      -Dcom.sun.management.jmxremote.authenticate=false
+      -Dcom.sun.management.jmxremote.ssl=false
+      -Djava.rmi.server.hostname=localhost
+      -Xmx256m
+      -Xms256m
+  command: ["-Dlogback.configurationFile=/var/lib/gorki/logback.xml"]
+  volumes:
+    - ./genesis/pos.json:/var/lib/gorki/genesis/pos.json
+    - ./genesis/wallets.json:/var/lib/gorki/genesis/wallets.json
+    - ./comm/peers.json:/var/lib/gorki/comm/peers.json
+    - ./logback.xml:/var/lib/gorki/logback.xml
+  networks:
+    - sim-net
+
+
+x-db: &default-db
+  image: postgres
+  env_file:
+    - .env_db
+  networks:
+    - sim-net
+
+services:
+  db0:
+    <<: *default-db
+    ports:
+      - "5443:5432"
+
+  db1:
+    <<: *default-db
+    ports:
+      - "5444:5432"
+
+  db2:
+    <<: *default-db
+    ports:
+      - "5445:5432"
+
+  db3:
+    <<: *default-db
+    ports:
+      - "5446:5432"
+
+  node0:
+    <<: *default-node
+    links:
+      - db0
+    env_file:
+      - .env_v0
+    ports:
+      - "8081:8080"
+      - "9001:9001"
+
+  node1:
+    <<: *default-node
+    links:
+      - db1
+    env_file:
+      - .env_v1
+    ports:
+      - "8082:8080"
+      - "9002:9001"
+
+  node2:
+    <<: *default-node
+    links:
+      - db2
+    env_file:
+      - .env_v2
+    ports:
+      - "8083:8080"
+      - "9003:9001"
+
+  node3:
+    <<: *default-node
+    links:
+      - db3
+    env_file:
+      - .env_v3
+    ports:
+      - "8084:8080"
+      - "9004:9001"
+
+networks:
+  sim-net:

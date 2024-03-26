@@ -13,8 +13,8 @@ object Dependencies {
   )
 
   // Network communication
-  val grpc      = "io.grpc" % "grpc-core"  % "1.53.0"
-  val grpcNetty = "io.grpc" % "grpc-netty" % "1.53.0"
+  val grpc      = "io.grpc" % "grpc-core"  % "1.61.0"
+  val grpcNetty = "io.grpc" % "grpc-netty" % "1.61.0"
 
   // LEGACY dependencies of imported projects
   val protobuf           = "com.google.protobuf"         % "protobuf-java"    % "3.22.2"
@@ -25,13 +25,12 @@ object Dependencies {
   val bouncyProvCastle   = "org.bouncycastle"            % "bcprov-jdk15on"   % "1.70"
   val bouncyPkixCastle   = "org.bouncycastle"            % "bcpkix-jdk15on"   % "1.70"
   val guava              = "com.google.guava"            % "guava"            % "31.1-jre"
-  val secp256k1Java      = "com.github.rchain"           % "secp256k1-java"   % "0.1"
   val scodecCore         = "org.scodec"                 %% "scodec-core"      % "1.11.10"
   val scodecCats         = "org.scodec"                 %% "scodec-cats"      % "1.2.0"
   val scodecBits         = "org.scodec"                 %% "scodec-bits"      % "1.1.37"
   val shapeless          = "com.chuusai"                %% "shapeless"        % "2.3.10"
   val lz4                = "org.lz4"                     % "lz4-java"         % "1.8.0"
-  val lmdbjava           = "org.lmdbjava"                % "lmdbjava"         % "0.8.3"
+  val lmdbjava           = "org.lmdbjava"                % "lmdbjava"         % "0.9.0"
   val enumeratum         = "com.beachape"               %% "enumeratum"       % "1.7.2"
   val xalan              = "xalan"                       % "xalan"            % "2.7.3"
   val catsMtl            = "org.typelevel"              %% "cats-mtl-core"    % "0.7.1"
@@ -51,7 +50,6 @@ object Dependencies {
     protobuf,
     scalapbRuntimeLib,
     scalapbCompiler,
-    secp256k1Java,
     scodecCore,
     scodecCats,
     scodecBits,
@@ -79,6 +77,7 @@ object Dependencies {
   val mockito             = "org.mockito"       %% "mockito-scala-cats" % "1.17.12"  % Test
   val scalacheck_e        = "org.typelevel"     %% "scalacheck-effect"  % "1.0.4"    % Test
   val scalatestScalacheck = "org.scalatestplus" %% "scalacheck-1-17"    % "3.2.16.0" % Test
+  val embedPgsql          = "io.zonky.test"      % "embedded-postgres"  % "2.0.6"
 
   // Diagnostics
   val kamonBundle           = "io.kamon"    %% "kamon-bundle"         % "2.6.1"
@@ -87,11 +86,15 @@ object Dependencies {
   val influxDbClient        = "com.influxdb" % "influxdb-client-java" % "6.10.0"
 
   // Logging
-  val logbackClassic = "ch.qos.logback" % "logback-classic" % "1.4.7"
-  val slf4j          = "org.slf4j"      % "slf4j-api"       % "2.0.5"
+  val logbackClassic   = "ch.qos.logback"              % "logback-classic" % "1.4.7"
+  // val slf4j            = "org.slf4j"                   % "slf4j-api"       % "2.0.5"
+  val typesagfeLogging = "com.typesafe.scala-logging" %% "scala-logging"   % "3.9.4"
 
   // Reflection
   def scalaReflect(scalaVersion: String): ModuleID = "org.scala-lang" % "scala-reflect" % scalaVersion
+
+  // Typeclass derivation
+  val magnolia1 = "com.softwaremill.magnolia1_2" %% "magnolia" % "1.1.8"
 
   // Config
   val pureConfig = "com.github.pureconfig" %% "pureconfig" % "0.17.4"
@@ -103,6 +106,7 @@ object Dependencies {
   val circeCodec   = "org.http4s" %% "http4s-circe"        % "0.23.23"
   // for auto-derivation of JSON codecs
   val circeGeneric = "io.circe"   %% "circe-generic"       % "0.14.5"
+  val circeParser  = "io.circe"   %% "circe-parser"        % "0.14.5"
 
   val endpointsAlg       = "org.endpoints4s" %% "algebra"             % "1.9.0"
   val endpointsAlgCirce  = "org.endpoints4s" %% "algebra-circe"       % "2.3.0"
@@ -113,26 +117,27 @@ object Dependencies {
   val endpointsOpenApi   = "org.endpoints4s" %% "openapi"             % "4.4.0"
 
   // Database
-  val junitJupiter         = "org.junit.jupiter" % "junit-jupiter-api" % "5.10.0"  % Test
-  val postgresql           = "org.postgresql"    % "postgresql"        % "42.6.0"
-  val h2db                 = "com.h2database"    % "h2"                % "2.1.214" % Test
+  val junitJupiter         = "org.junit.jupiter"  % "junit-jupiter-api" % "5.10.0" % Test
+  val postgresql           = "org.postgresql"     % "postgresql"        % "42.7.1"
   val slick: Seq[ModuleID] = Seq(
     "com.typesafe.slick"                 %% "slick"               % "3.4.1",
-    "org.slf4j"                           % "slf4j-nop"           % "2.0.5",
     "com.typesafe.slick"                 %% "slick-hikaricp"      % "3.4.1",
     "io.github.nafg.slick-migration-api" %% "slick-migration-api" % "0.9.0",// Migration tool for Slick
   )
+  val dbcp2                = "org.apache.commons" % "commons-dbcp2"     % "2.9.0"
 
   // Cryptography
   val bcprov = "org.bouncycastle" % "bcprov-jdk15on" % "1.68"
 
-  val common = Seq(catsCore, catsEffect, fs2Core, jaxb, kindProjector)
+  val apacheCommonsIO = "commons-io" % "commons-io" % "2.15.1"
+
+  val common = Seq(catsCore, catsEffect, fs2Core, jaxb, kindProjector, circeGeneric, circeParser, apacheCommonsIO)
 
   val diagnostics = Seq(kamonBundle, kamonInfluxDbReporter, kamonJaegerReporter, influxDbClient)
 
-  val log = Seq(logbackClassic, slf4j)
+  val log = Seq(logbackClassic, typesagfeLogging)
 
-  val http4s      = Seq(http4sNetty, http4sDSL, circeCodec, http4sBlaze, circeGeneric)
+  val http4s      = Seq(http4sNetty, http4sDSL, circeCodec, http4sBlaze)
   val endpoints4s =
     Seq(
       endpointsAlg,
@@ -144,7 +149,7 @@ object Dependencies {
       endpointsOpenApi,
     )
 
-  val tests = Seq(scalatest, scalatest_ce, mockito, scalacheck_e, scalacheckShapeless, scalatestScalacheck)
+  val tests = Seq(scalatest, scalatest_ce, mockito, scalacheck_e, scalacheckShapeless, scalatestScalacheck, embedPgsql)
 
-  val dbLibs = Seq(h2db, postgresql, junitJupiter) ++ slick
+  val dbLibs = Seq(postgresql, junitJupiter, dbcp2) ++ slick
 }

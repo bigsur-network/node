@@ -1,90 +1,113 @@
 package node
 
-import cats.effect.Ref
-import cats.effect.kernel.Async
+import cats.Parallel
+import cats.effect.Async
 import cats.syntax.all.*
-import dproc.DProc
-import dproc.DProc.ExeEngine
-import dproc.data.Block
-import sdk.DagCausalQueue
+import fs2.Stream
+import node.rpc.syntax.all.grpcClientSyntax
+import node.rpc.{GrpcChannelsManager, GrpcClient}
 import sdk.crypto.ECDSA
+import sdk.data.{BalancesState, HostWithPort}
 import sdk.diag.Metrics
-import sdk.merging.Relation
-import sdk.node.{Processor, Proposer}
+import sdk.log.Logger.*
+import sdk.primitive.ByteArray
 import secp256k1.Secp256k1
-import weaver.WeaverState
 import weaver.data.FinalData
 
-final case class Node[F[_], M, S, T](
-  // state
-  weaverStRef: Ref[F, WeaverState[M, S, T]],
-  procStRef: Ref[F, Processor.ST[M]],
-  propStRef: Ref[F, Proposer.ST],
-  bufferStRef: Ref[F, DagCausalQueue[M]],
-  // inputs and outputs
-  dProc: DProc[F, M, T],
-)
+import java.net.InetSocketAddress
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 object Node {
 
-  val SupportedECDSA: Map[String, ECDSA] = Map("secp256k1" -> Secp256k1.apply)
+  def createGenesis[F[_]: Async: Parallel](
+    id: ByteArray,
+    genesisPoS: FinalData[ByteArray],
+    genesisBalances: BalancesState,
+    setup: Setup[F],
+  ): Stream[F, Unit] = {
+    implicit val m: Metrics[F] = Metrics.unit
+    Stream.eval(for {
+      _ <- logInfoF(s"Creating genesis block.")
+      g <- Genesis.mkGenesisBlock[F](id, genesisPoS, genesisBalances, setup.balancesShard)
+      _ <- logDebugF(s"Genesis block created with hash ${g.id}.")
+      _ <- DbApiImpl(setup.database).saveBlock(g)
+      _ <- logDebugF(s"Genesis block saved.")
+      _ <- setup.dProc.acceptMsg(g.id)
+      _ <- logInfoF(s"Genesis complete.")
+    } yield ())
+  }
 
-  /** Make instance of a process - peer or the network.
-   * Init with last finalized state (lfs as the simplest). */
-  def apply[F[_]: Async: Metrics, M, S, T: Ordering](
-    id: S,
-    lfs: WeaverState[M, S, T],
-    hash: Block[M, S, T] => F[M],
-    loadTx: F[Set[T]],
-    computePreStateWithEffects: (
-      Set[M],
-      Set[M],
-      Set[T],
-      Set[T],
-      Set[T],
-    ) => F[((Array[Byte], Seq[T]), (Array[Byte], Seq[T]))],
-    saveBlock: Block.WithId[M, S, T] => F[Unit],
-    readBlock: M => F[Block[M, S, T]],
-  ): F[Node[F, M, S, T]] =
+  private def waitTillResolved[F[_]: Async](
+    isa: InetSocketAddress,
+    time: FiniteDuration = 2.second,
+  ): F[InetSocketAddress] =
+    isa.tailRecM { isa =>
+      if (isa.isUnresolved)
+        logInfoF(s"Bootstrap host ${isa.getHostName} is unavailable. Retry in ${time.toSeconds} seconds.") *>
+          Async[F].sleep(time) *>
+          Async[F].delay(new InetSocketAddress(isa.getHostName, isa.getPort).asLeft[InetSocketAddress])
+      else
+        Async[F].delay(isa.asRight[InetSocketAddress])
+    }
+
+  private def waitTillLatestMessageIsAvailableAndGet[F[_]: Async: GrpcChannelsManager](
+    bootstrap: HostWithPort,
+    time: FiniteDuration = 2.second,
+  ): F[Seq[ByteArray]] =
+    ().tailRecM { _ =>
+      // TODO make API methods return errors?
+      GrpcClient[F]
+        .getLatestBlocks(bootstrap)
+        .flatTap(x => new Exception(s"Empty latest messages.").raiseError.whenA(x.isEmpty))
+        .attempt
+        .flatMap {
+          case Right(lms) =>
+            logInfoF(
+              s"Query for latest messages from $bootstrap succeed: $lms",
+            ) *> Async[F].delay(lms.asRight[Unit])
+          case Left(e)    =>
+            logInfoF(
+              s"Query for latest messages from $bootstrap failed: ${e.getLocalizedMessage}. Retry in $time seconds.",
+            ) *> Async[F].sleep(time).as(().asLeft[Seq[ByteArray]])
+        }
+    }
+
+  private def bootstrap[F[_]: Async: GrpcChannelsManager](
+    bootstrap: HostWithPort,
+    blockResolver: BlockResolver[F],
+  ): Stream[F, Unit] = Stream.eval {
     for {
-      weaverStRef    <- Ref.of(lfs)                       // weaver
-      proposerStRef  <- Ref.of(Proposer.default)          // proposer
-      processorStRef <- Ref.of(Processor.default[M]())    // processor
-      bufferStRef    <- Ref.of(DagCausalQueue.default[M]) // buffer
+      resolved <- waitTillResolved(InetSocketAddress.createUnresolved(bootstrap.host, bootstrap.port))
+      tips     <- waitTillLatestMessageIsAvailableAndGet(bootstrap)
+      _        <- tips.traverse(blockResolver.in(_, bootstrap))
+    } yield ()
+  }
 
-      exeEngine = new ExeEngine[F, M, S, T] {
-                    def execute(
-                      base: Set[M],
-                      fringe: Set[M],
-                      toFinalize: Set[T],
-                      toMerge: Set[T],
-                      txs: Set[T],
-                    ): F[((Array[Byte], Seq[T]), (Array[Byte], Seq[T]))] =
-                      computePreStateWithEffects(base, fringe, toFinalize, toMerge, txs)
+  def apply[F[_]: Async: Parallel](
+    id: ByteArray,
+    isBootstrap: Boolean,
+    setup: Setup[F],
+    genesisPoS: FinalData[ByteArray],
+    genesisBalances: BalancesState,
+    bootstrapOpt: Option[HostWithPort] = None,
+  ): fs2.Stream[F, Unit] = {
+    val printDiag: Stream[F, Unit] = NodeSnapshot
+      .stream(setup.stateManager, setup.dProc.finStream)
+      .metered(3000.milli)
+      .evalMap(x => logDebugF(x.show))
 
-                    // data read from the final state associated with the final fringe
-                    def consensusData(fringe: Set[M]): F[FinalData[S]] = lfs.lazo.trustAssumption.pure[F] // TODO
-                  }
+    val init =
+      if (isBootstrap) createGenesis[F](id, genesisPoS, genesisBalances, setup)
+      else {
+        implicit val gcm: GrpcChannelsManager[F] = setup.grpcChannelsManager
+        bootstrap(bootstrapOpt.get, setup.blockResolver)
+      }
 
-      dproc <- DProc.apply[F, M, S, T](
-                 weaverStRef,
-                 proposerStRef,
-                 processorStRef,
-                 bufferStRef,
-                 loadTx,
-                 id.some,
-                 exeEngine,
-                 Relation.notRelated[F, T],
-                 hash,
-                 saveBlock,
-                 readBlock,
-               )
+    val run: Stream[F, Unit] = setup.nodeStream
 
-    } yield new Node(
-      weaverStRef,
-      processorStRef,
-      proposerStRef,
-      bufferStRef,
-      dproc,
-    )
+    (init ++ printDiag) concurrently run
+  }
+
+  val SupportedECDSA: Map[String, ECDSA] = Map("secp256k1" -> Secp256k1.apply)
+  val BalancesShardName: String          = "balances"
 }

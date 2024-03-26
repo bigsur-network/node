@@ -5,7 +5,6 @@ import cats.effect.Ref
 import cats.effect.kernel.{Async, Sync}
 import cats.syntax.all.*
 import cats.{Applicative, Monad}
-import diagnostics.syntax.all.kamonSyntax
 import dproc.DProc.ExeEngine
 import dproc.WeaverNode.{validateExeData, ReplayResult}
 import dproc.data.Block
@@ -13,6 +12,7 @@ import fs2.Stream
 import sdk.diag.Metrics
 import sdk.merging.{DagMerge, Relation, Resolve}
 import sdk.node.Processor
+import sdk.primitive.ByteArray
 import sdk.syntax.all.*
 import weaver.*
 import weaver.GardState.GardM
@@ -47,7 +47,10 @@ final case class WeaverNode[F[_]: Sync: Metrics, M, S, T](state: WeaverState[M, 
 
   def resolver: Resolve[F, T] = new Resolve[F, T] {
     override def resolve(x: IterableOnce[T]): F[(Set[T], Set[T])] =
-      Resolve.naive[T](x, state.meld.conflictsMap.contains).bimap(_.iterator.to(Set), _.iterator.to(Set)).pure
+      Resolve
+        .naive[T](x, !state.meld.conflictsMap.get(_).exists(_.nonEmpty))
+        .bimap(_.iterator.to(Set), _.iterator.to(Set))
+        .pure
   }
 
   def computeFringe(minGenJs: Set[M]): FringeData[M] =
@@ -62,8 +65,8 @@ final case class WeaverNode[F[_]: Sync: Metrics, M, S, T](state: WeaverState[M, 
   def computeGard(txs: List[T], fFringe: Set[M], expT: Int): List[T] =
     txs.filterNot(state.gard.isDoubleSpend(_, fFringe, expT))
 
-  def computeCsResolve(minGenJs: Set[M], fFringe: Set[M]): F[ConflictResolution[T]] = for {
-    toResolve <- dag.between(minGenJs, fFringe).map(_.filterNot(state.lazo.offences).flatMap(state.meld.txsMap))
+  def computeCsResolve(fullJss: Set[M], fFringe: Set[M]): F[ConflictResolution[T]] = for {
+    toResolve <- dag.between(fullJss, fFringe).map(_.filterNot(state.lazo.offences).flatMap(state.meld.txsMap))
     r         <- resolver.resolve(toResolve)
   } yield ConflictResolution(r._1, r._2)
 
@@ -92,10 +95,12 @@ final case class WeaverNode[F[_]: Sync: Metrics, M, S, T](state: WeaverState[M, 
       (txToPut != m.txs).guard[Option].as(InvalidDoubleSpend(m.txs.toSet -- txToPut)).toLeft(())
     })
 
-  def validateCsResolve(m: Block[M, S, T]): EitherT[F, InvalidResolution[T], Set[T]] =
-    EitherT(WeaverNode(state).computeCsResolve(m.minGenJs, m.finalFringe).map { merge =>
+  def validateCsResolve(m: Block[M, S, T]): EitherT[F, InvalidResolution[T], Set[T]] = {
+    val fullJss = state.lazo.fullJs(m.bonds.activeSet)(m.minGenJs)
+    EitherT(WeaverNode(state).computeCsResolve(fullJss, m.finalFringe).map { merge =>
       (merge.accepted != m.merge).guard[Option].as(InvalidResolution(merge.accepted)).toLeft(merge.accepted)
     })
+  }
 
   def createMessage(
     txs: List[T],
@@ -112,7 +117,8 @@ final case class WeaverNode[F[_]: Sync: Metrics, M, S, T](state: WeaverState[M, 
       fin     <- newF.traverse(_ => WeaverNode(state).computeFsResolve(lazoF.fFringe, mgjs))
       lazoE   <- exeEngine.consensusData(lazoF.fFringe)
       txToPut  = WeaverNode(state).computeGard(txs, lazoF.fFringe, lazoE.expirationThreshold)
-      toMerge <- WeaverNode(state).computeCsResolve(mgjs, lazoF.fFringe)
+      fullJss  = state.lazo.fullJs(lazoE.bonds.activeSet)(mgjs)
+      toMerge <- WeaverNode(state).computeCsResolve(fullJss, lazoF.fFringe)
       r       <- exeEngine.execute(
                    state.lazo.latestFringe(mgjs).fFringe,
                    lazoF.fFringe,
@@ -159,13 +165,18 @@ final case class WeaverNode[F[_]: Sync: Metrics, M, S, T](state: WeaverState[M, 
 
       ((finalState, _), (postState, _)) = r
 
-      _ <-
-        EitherT.fromOption(
-          (java.util.Arrays.equals(finalState, m.finalStateHash) &&
-            java.util.Arrays.equals(postState, m.postStateHash))
-            .guard[Option],
-          Offence.iexec,
-        )
+      _ <- EitherT
+             .fromOption(
+               (finalState == m.finalStateHash).guard[Option],
+               InvalidFinalState(finalState, m.finalStateHash),
+             )
+             .leftWiden[Offence]
+      _ <- EitherT
+             .fromOption(
+               (postState == m.postStateHash).guard[Option],
+               InvalidPostState(postState, m.postStateHash),
+             )
+             .leftWiden[Offence]
     } yield ()
 
   def createBlockWithId(

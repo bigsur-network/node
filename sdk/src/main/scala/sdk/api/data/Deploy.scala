@@ -1,6 +1,7 @@
 package sdk.api.data
 
 import cats.kernel.Eq
+import sdk.primitive.ByteArray
 
 final case class Deploy(
   sig: Array[Byte],
@@ -23,4 +24,16 @@ final case class Deploy(
 
 object Deploy {
   implicit val deployEq: Eq[Deploy] = Eq.fromUniversalEquals
+
+  def apply(b: sdk.data.Deploy) = new Deploy(
+    b.sig.bytes,
+    b.deployerPk.bytes,
+    b.shardName,
+    b.program,
+    b.phloPrice,
+    b.phloLimit,
+    0L,
+    b.nonce,
+    0L,
+  )
 }

@@ -15,4 +15,5 @@ package object slick {
   val qShards         = TableQuery[TableShards]
   val qValidators     = TableQuery[TableValidators]
   val qConfigs        = TableQuery[TableConfig]
+  val qPeers          = TableQuery[TablePeers]
 }

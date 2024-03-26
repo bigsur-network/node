@@ -1,11 +1,10 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer
 
 import cats.effect.Sync
-import cats.syntax.all._
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
-import io.rhonix.rholang.ast.rholang.Absyn._
+import cats.syntax.all.*
+import io.rhonix.rholang.ast.rholang.Absyn.*
 import coop.rchain.rholang.interpreter.errors.NormalizerError
+import io.rhonix.rholang.types.{ExprN, GBigIntN, GIntN, GStringN, GUriN}
 
 object GroundNormalizeMatcher {
   def normalizeMatch[F[_]: Sync](g: Ground): F[ExprN] = {

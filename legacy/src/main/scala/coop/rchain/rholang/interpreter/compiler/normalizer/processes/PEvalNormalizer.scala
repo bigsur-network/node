@@ -1,12 +1,12 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer.processes
 
 import cats.effect.Sync
-import cats.syntax.all._
+import cats.syntax.all.*
 import coop.rchain.models.Par
-import io.rhonix.rholang.ParN
 import io.rhonix.rholang.ast.rholang.Absyn.PEval
 import coop.rchain.rholang.interpreter.compiler.normalizer.NameNormalizeMatcher
 import coop.rchain.rholang.interpreter.compiler.{NameVisitInputs, ProcVisitInputs, ProcVisitOutputs}
+import io.rhonix.rholang.types.ParN
 
 object PEvalNormalizer {
   def normalize[F[_]: Sync](p: PEval, input: ProcVisitInputs)(implicit

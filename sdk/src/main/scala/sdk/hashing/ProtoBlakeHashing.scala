@@ -62,4 +62,10 @@ object ProtoBlakeHashing {
     @inline def +|+(seq2: Eval[Seq[Array[Byte]]]): Eval[Array[Byte]] =
       seq1 +++ seq2.map(_.sorted)
   }
+
+  implicit class SeqArrayCombinators(val seq: Seq[Array[Byte]]) extends AnyVal {
+
+    /** Sort and concatenate elements of the sequence. Return hash of resulting sequence. */
+    @inline def sortAndHash: Array[Byte] = hash(concatSeq(seq.sorted))
+  }
 }

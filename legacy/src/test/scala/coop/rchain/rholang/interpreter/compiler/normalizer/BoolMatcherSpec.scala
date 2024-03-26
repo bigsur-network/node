@@ -1,7 +1,7 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer
 
-import io.rhonix.rholang.GBoolN
-import io.rhonix.rholang.ast.rholang.Absyn._
+import io.rhonix.rholang.ast.rholang.Absyn.*
+import io.rhonix.rholang.types.GBoolN
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

@@ -1,5 +1,5 @@
 package slick
 
 package object syntax {
-  object all extends DBIOActionRunSyntax
+  object all extends DBIOActionRunSyntax with SlickApiSyntax
 }

@@ -6,6 +6,7 @@ import coop.rchain.models.Expr.ExprInstance.*
 import coop.rchain.models.GUnforgeable.UnfInstance.*
 import coop.rchain.models.Var.VarInstance.*
 import coop.rchain.models.*
+import io.rhonix.rholang.types.*
 import scalapb.GeneratedMessage
 
 import scala.annotation.unused

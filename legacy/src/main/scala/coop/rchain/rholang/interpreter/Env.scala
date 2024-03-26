@@ -1,13 +1,11 @@
 package coop.rchain.rholang.interpreter
 
-import scala.collection.immutable.Map
-
-final case class Env[A] (envMap: Map[Int, A], level: Int, shift: Int) {
+final case class Env[A](envMap: Map[Int, A], level: Int, shift: Int) {
   def put(a: A): Env[A] =
     Env(envMap + (level -> a), level + 1, shift)
 
   def get(k: Int): Option[A] =
-    envMap.get((level + shift) - k - 1)
+    envMap.get(level + shift - k - 1)
 
   def shift(j: Int): Env[A] =
     this.copy(shift = shift + j)

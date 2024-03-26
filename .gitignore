@@ -93,3 +93,6 @@ vdags/
 .lmdb/
 # All reference config files should be reference.conf, application.conf containing secrets is ignored
 *application.conf
+
+# Ignore docker env files
+*.env

@@ -1,20 +1,21 @@
 package coop.rchain.rholang.interpreter
 
+import cats.Eval
+import cats.syntax.all.*
+import coop.rchain.models.*
 import coop.rchain.models.Connective.ConnectiveInstance
-import coop.rchain.models.Connective.ConnectiveInstance._
+import coop.rchain.models.Connective.ConnectiveInstance.*
 import coop.rchain.models.Expr.ExprInstance
-import coop.rchain.models.Expr.ExprInstance._
+import coop.rchain.models.Expr.ExprInstance.*
+import coop.rchain.models.GUnforgeable.UnfInstance.{GDeployIdBody, GDeployerIdBody, GPrivateBody, GSysAuthTokenBody}
 import coop.rchain.models.Var.VarInstance
 import coop.rchain.models.Var.VarInstance.{BoundVar, FreeVar, Wildcard}
-import coop.rchain.models._
-import scalapb.GeneratedMessage
-import coop.rchain.shared.StringOps._
-import cats.syntax.all._
-import coop.rchain.models.GUnforgeable.UnfInstance.{GDeployIdBody, GDeployerIdBody, GPrivateBody, GSysAuthTokenBody}
+import coop.rchain.shared.StringOps.*
 import coop.rchain.shared.{Base16, Printer}
-import cats.Eval
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
+import io.rhonix.rholang.Bindings.*
+import io.rhonix.rholang.normalizer.Normalizer
+import io.rhonix.rholang.types.ParN
+import scalapb.GeneratedMessage
 
 object PrettyPrinter {
   def apply(): PrettyPrinter = PrettyPrinter(0, 0)
@@ -37,12 +38,21 @@ final case class PrettyPrinter(
   isBuildingChannel: Boolean = false,
 ) {
 
+  // TEMP: Gets variable index. Legacy variant is to support existing reducer logic.
+  private def varLevel(level: Int) =
+    if (Normalizer.BOUND_VAR_INDEX_REVERSED)
+      // 1. legacy reducer expects index from end
+      boundShift - level - 1
+    else
+      // 2. directly return index
+      level
+
   val indentStr = "  "
 
   def boundId: String     = rotate(baseId)
   def setBaseId(): String = increment(baseId)
 
-  import PrettyPrinter._
+  import PrettyPrinter.*
 
   def buildString(e: Expr): String             = buildStringM(e).value.cap()
   def buildString(v: Var): String              = buildStringM(v).value.cap()
@@ -152,7 +162,7 @@ final case class PrettyPrinter(
       case FreeVar(level)    => Eval.now(s"$freeId${freeShift + level}")
       case BoundVar(level)   =>
         (if (isNewVar(level) && !isBuildingChannel) Eval.now("*") else Eval.now("")) |+| Eval.now(
-          s"$boundId${boundShift - level - 1}",
+          s"$boundId${varLevel(level)}",
         )
       case Wildcard(_)       => Eval.now("_")
       case VarInstance.Empty => Eval.now("@Nil")
@@ -161,6 +171,7 @@ final case class PrettyPrinter(
   private def buildChannelStringM(p: Par): Eval[String] = buildChannelStringM(p, 0)
 
   private def buildChannelStringM(p: Par, indent: Int): Eval[String] = {
+
     def quoteIfNotNew(s: String): String = {
       val isBoundNew = p match {
         case Par(_, _, _, Seq(Expr(EVarBody(EVar(Var(BoundVar(level)))))), _, _, _, _, _, _) =>
@@ -198,7 +209,7 @@ final case class PrettyPrinter(
             val bindString =
               this
                 .copy(
-                  freeShift = boundShift + previousFree,
+                  freeShift = boundShift,
                   boundShift = 0,
                   freeId = boundId,
                   baseId = setBaseId(),
@@ -235,7 +246,7 @@ final case class PrettyPrinter(
       case n: New =>
         val introducedNewsShiftIdx = (0 until n.bindCount).map(i => i + boundShift)
         Eval
-          .now("new " + buildVariables(n.bindCount) + " in {\n" + indentStr * (indent + 1)) |+| this
+          .now("new " + buildVariables(n.bindCount, boundShift) + " in {\n" + indentStr * (indent + 1)) |+| this
           .copy(
             boundShift = boundShift + n.bindCount,
             newsShiftIndices = newsShiftIndices ++ introducedNewsShiftIdx,
@@ -273,7 +284,7 @@ final case class PrettyPrinter(
               .toList
               .intercalate(Eval.now(" \\/ ")) |+| Eval.now("}")
           case ConnNotBody(value)       => Eval.now("~{") |+| buildStringM(value) |+| Eval.now("}")
-          case VarRefBody(value)        => Eval.now(s"=$freeId${freeShift - value.index - 1}")
+          case VarRefBody(value)        => Eval.now(s"=$freeId${value.index}")
           case _: ConnBool              => Eval.now("Bool")
           case _: ConnInt               => Eval.now("Int")
           case _: ConnBigInt            => Eval.now("BigInt")
@@ -333,9 +344,9 @@ final case class PrettyPrinter(
   def rotate(id: String): String =
     id.map(char => ((char + rotation - 97) % 26 + 97).toChar)
 
-  private def buildVariables(bindCount: Int): String =
+  private def buildVariables(bindCount: Int, shift: Int): String =
     (0 until Math.min(maxVarCount, bindCount))
-      .map(i => s"$boundId${boundShift + i}")
+      .map(i => s"$boundId${shift + i}")
       .mkString(", ")
 
   private def buildSeq[T <: GeneratedMessage](s: Seq[T]): Eval[String] =
@@ -382,5 +393,5 @@ final case class PrettyPrinter(
       p.bundles.isEmpty &
       p.connectives.isEmpty
 
-  private def isNewVar(level: Int): Boolean = newsShiftIndices.contains(boundShift - level - 1)
+  private def isNewVar(level: Int): Boolean = newsShiftIndices.contains(varLevel(level))
 }

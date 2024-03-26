@@ -22,11 +22,11 @@ object Baseline {
         _.offencesSetId,
         _.bondsMapId,
         _.finalFringeId,
-        _.deploySetId,
-        _.mergeSetId,
-        _.dropSetId,
-        _.mergeSetFinalId,
-        _.dropSetFinalId,
+        _.execDeploySetId,
+        _.mergeDeploySetId,
+        _.dropDeploySetId,
+        _.mergeDeploySetFinalId,
+        _.dropDeploySetFinalId,
       )
       .addForeignKeys(_.fk1, _.fk2, _.fk3, _.fk4, _.fk5, _.fk6, _.fk7, _.fk8, _.fk9, _.fk10, _.fk11)
       .addIndexes(_.idx)

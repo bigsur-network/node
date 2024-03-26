@@ -1,13 +1,13 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer.processes
 
 import cats.effect.Sync
-import cats.syntax.all._
+import cats.syntax.all.*
 import coop.rchain.models.Par
-import io.rhonix.rholang._
-import io.rhonix.rholang.ast.rholang.Absyn._
+import io.rhonix.rholang.ast.rholang.Absyn.*
 import coop.rchain.rholang.interpreter.compiler.ProcNormalizeMatcher.normalizeMatch
 import coop.rchain.rholang.interpreter.compiler.{FreeContext, ProcVisitInputs, ProcVisitOutputs, SourcePosition}
 import coop.rchain.rholang.interpreter.errors.UnexpectedBundleContent
+import io.rhonix.rholang.types.{BundleN, ConnectiveN, NilN, ParN, ParProcN}
 
 object PBundleNormalizer {
   def normalize[F[_]: Sync](b: PBundle, input: ProcVisitInputs)(implicit

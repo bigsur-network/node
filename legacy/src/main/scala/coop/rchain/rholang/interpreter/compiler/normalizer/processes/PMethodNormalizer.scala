@@ -1,14 +1,14 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer.processes
 
 import cats.effect.Sync
-import cats.syntax.all._
+import cats.syntax.all.*
 import coop.rchain.models.Par
-import io.rhonix.rholang._
 import io.rhonix.rholang.ast.rholang.Absyn.PMethod
 import coop.rchain.rholang.interpreter.compiler.ProcNormalizeMatcher.normalizeMatch
 import coop.rchain.rholang.interpreter.compiler.{ProcVisitInputs, ProcVisitOutputs}
+import io.rhonix.rholang.types.{EMethodN, NilN, ParN}
 
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 object PMethodNormalizer {
   def normalize[F[_]: Sync](p: PMethod, input: ProcVisitInputs)(implicit

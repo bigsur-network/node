@@ -2,12 +2,11 @@ package coop.rchain.rholang.interpreter.compiler.normalizer
 
 import cats.Eval
 import coop.rchain.catscontrib.effect.implicits.sEval
-import coop.rchain.models._
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
-import io.rhonix.rholang.ast.rholang.Absyn._
-import coop.rchain.rholang.interpreter.compiler._
-import coop.rchain.rholang.interpreter.errors._
+import coop.rchain.models.*
+import io.rhonix.rholang.ast.rholang.Absyn.*
+import coop.rchain.rholang.interpreter.compiler.*
+import coop.rchain.rholang.interpreter.errors.*
+import io.rhonix.rholang.types.{BoundVarN, FreeVarN, GIntN, ParN, WildcardN}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

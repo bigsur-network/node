@@ -1,37 +1,41 @@
 package slick.api
 
 import cats.effect.Async
-import cats.implicits.toFunctorOps
+import cats.syntax.all.*
+import sdk.comm.Peer
 import sdk.primitive.ByteArray
 import slick.syntax.all.*
-import slick.{SlickDb, SlickQuery}
+import slick.{Actions, SlickDb}
 
 import scala.concurrent.ExecutionContext
 
 object SlickApi {
   def apply[F[_]: Async](db: SlickDb): F[SlickApi[F]] =
     Async[F].executionContext.map(ec => new SlickApi(db, ec))
+
+  def apply[F[_]](implicit s: SlickApi[F]): SlickApi[F] = s
 }
 
 class SlickApi[F[_]: Async](db: SlickDb, ec: ExecutionContext) {
   implicit val slickDb: SlickDb = db
 
-  val queries: SlickQuery = SlickQuery(db.profile, ec)
+  val actions: Actions = Actions(db.profile, ec)
 
-  def shardGetAll: F[Set[String]] = queries.shardGetAll.run.map(_.toSet)
+  def getConfig(key: String): F[Option[String]] = actions.getConfig(key).run
 
-  def deployerGetAll: F[Set[ByteArray]] = queries.deployerGetAll.run.map(_.map(ByteArray(_)).toSet)
+  def putConfig(key: String, value: String): F[Unit] = actions.putConfig(key, value).run.void
 
-  def deployInsert(d: sdk.data.Deploy): F[Unit] = queries
-    .deployInsertIfNot(
-      data.Deploy(d.sig.bytes, d.deployerPk.bytes, d.shardName, d.program, d.phloPrice, d.phloLimit, d.nonce),
-    )
-    .run
-    .void
+  def peers: F[Seq[Peer]] = actions.peers.run
 
-  def deployGetAll: F[Set[ByteArray]] = queries.deployGetAll.run.map(_.map(ByteArray(_)).toSet)
+  def deployInsert(d: sdk.data.Deploy): F[Unit] =
+    actions
+      .deployInsertIfNot(
+        data.Deploy(d.sig.bytes, d.deployerPk.bytes, d.shardName, d.program, d.phloPrice, d.phloLimit, d.nonce),
+      )
+      .run
+      .void
 
-  def deployGet(sig: ByteArray): F[Option[sdk.data.Deploy]] = queries
+  def deployGet(sig: ByteArray): F[Option[sdk.data.Deploy]] = actions
     .deployGetData(sig.bytes)
     .run
     .map(
@@ -48,52 +52,29 @@ class SlickApi[F[_]: Async](db: SlickDb, ec: ExecutionContext) {
       ),
     )
 
-  def deployDelete(sig: ByteArray): F[Int] = queries.deployDeleteAndCleanUp(sig.bytes).run
-
   /** DeploySet */
   def deploySetInsert(deploySetHash: ByteArray, deploySigs: Set[ByteArray]): F[Unit] =
-    queries.deploySetInsertIfNot(deploySetHash.bytes, deploySigs.toSeq.map(_.bytes)).run.void
-
-  def deploySetGetAll: F[Set[ByteArray]] = queries.deploySetGetAll.run.map(_.map(ByteArray(_)).toSet)
-
-  def deploySetGet(hash: ByteArray): F[Option[Set[ByteArray]]] = queries
-    .deploySetGetData(hash.bytes)
-    .run
-    .map(_.map(_.map(ByteArray(_)).toSet))
+    actions.deploySetInsertIfNot(deploySetHash.bytes, deploySigs.toSeq.map(_.bytes)).run.void
 
   /** BlockSet */
   def blockSetInsert(blockSetHash: ByteArray, blockHashes: Set[ByteArray]): F[Unit] =
-    queries.blockSetInsertIfNot(blockSetHash.bytes, blockHashes.toSeq.map(_.bytes)).run.void
-
-  def blockSetGetAll: F[Set[ByteArray]] = queries.blockSetGetAll.run.map(_.map(ByteArray(_)).toSet)
-
-  def blockSetGet(hash: ByteArray): F[Option[Set[ByteArray]]] = queries
-    .blockSetGetData(hash.bytes)
-    .run
-    .map(_.map(_.map(ByteArray(_)).toSet))
+    actions.blockSetInsertIfNot(blockSetHash.bytes, blockHashes.toSeq.map(_.bytes)).run.void
 
   /** BondsMap */
   def bondsMapInsert(bondsMapHash: ByteArray, bMap: Map[ByteArray, Long]): F[Unit] =
-    queries.bondsMapInsertIfNot(bondsMapHash.bytes, bMap.toSeq.map(x => (x._1.bytes, x._2))).run.void
-
-  def bondsMapGetAll: F[Set[ByteArray]] = queries.bondsMapGetAll.run.map(_.map(ByteArray(_)).toSet)
-
-  def bondsMapGet(hash: ByteArray): F[Option[Map[ByteArray, Long]]] = queries
-    .bondsMapGetData(hash.bytes)
-    .run
-    .map(_.map(_.map(x => (ByteArray(x._1), x._2)).toMap))
+    actions.bondsMapInsertIfNot(bondsMapHash.bytes, bMap.toSeq.map(x => (x._1.bytes, x._2))).run.void
 
   def blockInsert(b: sdk.data.Block)(
-    justificationSetHash: Option[ByteArray],
-    offencesSetHash: Option[ByteArray],
+    justificationSetHash: ByteArray,
+    offencesSetHash: ByteArray,
     bondsMapHash: ByteArray,
-    finalFringeHash: Option[ByteArray],
-    deploySetHash: Option[ByteArray],
-    mergeSetHash: Option[ByteArray],
-    dropSetHash: Option[ByteArray],
-    mergeSetFinalHash: Option[ByteArray],
-    dropSetFinalHash: Option[ByteArray],
-  ): F[Unit] = queries
+    finalFringeHash: ByteArray,
+    execDeploySetHash: ByteArray,
+    mergeDeploySetHash: ByteArray,
+    dropDeploySetHash: ByteArray,
+    mergeDeploySetFinalHash: ByteArray,
+    dropDeploySetFinalHash: ByteArray,
+  ): F[Unit] = actions
     .blockInsertIfNot(
       data.Block(
         version = b.version,
@@ -104,24 +85,22 @@ class SlickApi[F[_]: Async](db: SlickDb, ec: ExecutionContext) {
         postStateHash = b.postStateHash.bytes,
         validatorPk = b.validatorPk.bytes,
         shardName = b.shardName,
-        justificationSet = justificationSetHash.map(h => data.SetData(h.bytes, b.justificationSet.toSeq.map(_.bytes))),
+        justificationSet = data.SetData(justificationSetHash.bytes, b.justificationSet.toSeq.map(_.bytes)),
         seqNum = b.seqNum,
-        offencesSet = offencesSetHash.map(h => data.SetData(h.bytes, b.offencesSet.toSeq.map(_.bytes))),
+        offencesSet = data.SetData(offencesSetHash.bytes, b.offencesSet.toSeq.map(_.bytes)),
         bondsMap = data.BondsMapData(bondsMapHash.bytes, b.bondsMap.toSeq.map(x => (x._1.bytes, x._2))),
-        finalFringe = finalFringeHash.map(h => data.SetData(h.bytes, b.finalFringe.toSeq.map(_.bytes))),
-        deploySet = deploySetHash.map(h => data.SetData(h.bytes, b.deploySet.toSeq.map(_.bytes))),
-        mergeSet = mergeSetHash.map(h => data.SetData(h.bytes, b.mergeSet.toSeq.map(_.bytes))),
-        dropSet = dropSetHash.map(h => data.SetData(h.bytes, b.dropSet.toSeq.map(_.bytes))),
-        mergeSetFinal = mergeSetFinalHash.map(h => data.SetData(h.bytes, b.mergeSetFinal.toSeq.map(_.bytes))),
-        dropSetFinal = dropSetFinalHash.map(h => data.SetData(h.bytes, b.dropSetFinal.toSeq.map(_.bytes))),
+        finalFringe = data.SetData(finalFringeHash.bytes, b.finalFringe.toSeq.map(_.bytes)),
+        execDeploySet = data.SetData(execDeploySetHash.bytes, b.execDeploySet.toSeq.map(_.bytes)),
+        mergeDeploySet = data.SetData(mergeDeploySetHash.bytes, b.mergeDeploySet.toSeq.map(_.bytes)),
+        dropDeploySet = data.SetData(dropDeploySetHash.bytes, b.dropDeploySet.toSeq.map(_.bytes)),
+        mergeDeploySetFinal = data.SetData(mergeDeploySetFinalHash.bytes, b.mergeDeploySetFinal.toSeq.map(_.bytes)),
+        dropDeploySetFinal = data.SetData(dropDeploySetFinalHash.bytes, b.dropDeploySetFinal.toSeq.map(_.bytes)),
       ),
     )
     .run
     .void
 
-  def blockGetAll: F[Set[ByteArray]] = queries.blockGetAll.run.map(_.map(ByteArray(_)).toSet)
-
-  def blockGet(hash: ByteArray): F[Option[sdk.data.Block]] = queries
+  def blockGet(hash: ByteArray): F[Option[sdk.data.Block]] = actions
     .blockGetData(hash.bytes)
     .run
     .map(
@@ -135,17 +114,19 @@ class SlickApi[F[_]: Async](db: SlickDb, ec: ExecutionContext) {
           postStateHash = ByteArray(b.postStateHash),
           validatorPk = ByteArray(b.validatorPk),
           shardName = b.shardName,
-          justificationSet = b.justificationSet.map(_.data.map(ByteArray(_)).toSet).getOrElse(Set()),
+          justificationSet = b.justificationSet.data.map(ByteArray(_)).toSet,
           seqNum = b.seqNum,
-          offencesSet = b.offencesSet.map(_.data.map(ByteArray(_)).toSet).getOrElse(Set()),
+          offencesSet = b.offencesSet.data.map(ByteArray(_)).toSet,
           bondsMap = b.bondsMap.data.map(x => (ByteArray(x._1), x._2)).toMap,
-          finalFringe = b.finalFringe.map(_.data.map(ByteArray(_)).toSet).getOrElse(Set()),
-          deploySet = b.deploySet.map(_.data.map(ByteArray(_)).toSet).getOrElse(Set()),
-          mergeSet = b.mergeSet.map(_.data.map(ByteArray(_)).toSet).getOrElse(Set()),
-          dropSet = b.dropSet.map(_.data.map(ByteArray(_)).toSet).getOrElse(Set()),
-          mergeSetFinal = b.mergeSetFinal.map(_.data.map(ByteArray(_)).toSet).getOrElse(Set()),
-          dropSetFinal = b.dropSetFinal.map(_.data.map(ByteArray(_)).toSet).getOrElse(Set()),
+          finalFringe = b.finalFringe.data.map(ByteArray(_)).toSet,
+          execDeploySet = b.execDeploySet.data.map(ByteArray(_)).toSet,
+          mergeDeploySet = b.mergeDeploySet.data.map(ByteArray(_)).toSet,
+          dropDeploySet = b.dropDeploySet.data.map(ByteArray(_)).toSet,
+          mergeDeploySetFinal = b.mergeDeploySetFinal.data.map(ByteArray(_)).toSet,
+          dropDeploySetFinal = b.dropDeploySetFinal.data.map(ByteArray(_)).toSet,
         ),
       ),
     )
+
+  def isBlockExist(hash: ByteArray): F[Boolean] = actions.isBlockExist(hash).run
 }

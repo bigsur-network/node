@@ -1,6 +1,7 @@
-import Dependencies.*
 import BNFC.*
+import Dependencies.*
 import Secp256k1.*
+import sbtassembly.MergeStrategy
 
 val scala3Version       = "3.3.0"
 val scala2Version       = "2.13.10"
@@ -19,9 +20,10 @@ lazy val commonSettings = Seq(
     "--add-opens=java.base/java.nio=ALL-UNNAMED",
     "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
   ),
-  Test / fork               := true,
-  Test / parallelExecution  := false,
-  Test / testForkedParallel := false,
+  Test / fork                            := true,
+  Test / parallelExecution               := false,
+  Test / testForkedParallel              := false,
+  Compile / packageDoc / publishArtifact := false,
 )
 
 lazy val settingsScala3 = commonSettings ++ Seq(
@@ -35,17 +37,17 @@ lazy val settingsScala2 = commonSettings ++ Seq(
   // Enables Scala2 project to depend on Scala3 projects
   scalacOptions += "-Ytasty-reader",
   scalacOptions ++= CompilerOptions.DEFAULTS_SCALA_2,
-  Compile / compile / wartremoverErrors ++= WartsSettings.DEFAULTS_SCALA_2,
+  Compile / compile / wartremoverErrors ++= WartsSettings.DEFAULTS_SCALA_2.filterNot(Seq(Wart.SeqApply).contains),
 )
 
 lazy val gorkiNode = (project in file("."))
   .settings(commonSettings*)
-  .aggregate(sdk, weaver, dproc, db, node, rholang, legacy, sim, diag, macros, secp256k1)
+  .aggregate(sdk, weaver, dproc, db, node, legacy, sim, diag, macros, secp256k1)
 
 lazy val sdk = (project in file("sdk"))
 //  .settings(settingsScala3*) // Not supported in IntelliJ Scala plugin
   .settings(settingsScala2*)
-  .settings(libraryDependencies ++= common ++ dbLibs ++ tests :+ protobuf :+ bouncyProvCastle)
+  .settings(libraryDependencies ++= common ++ dbLibs ++ tests ++ log :+ protobuf :+ bouncyProvCastle :+ magnolia1)
 
 // Database interfaces implementation
 lazy val db = (project in file("db"))
@@ -85,8 +87,29 @@ lazy val node = (project in file("node"))
       // for embedded InfluxDB
       Resolver.sonatypeOssRepos("releases") ++
         Resolver.sonatypeOssRepos("snapshots"),
+    buildInfoKeys    := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion, git.gitHeadCommit),
+    buildInfoPackage := "node",
+
+    // Docker
+    Compile / mainClass := Some("node.Main"),
+    dockerBaseImage     := "azul/zulu-openjdk:18-jre-latest",
+    dockerEntrypoint    := Seq(
+      s"bin/${(Docker / executableScriptName).value}",
+      "-J--add-opens=java.base/java.lang=ALL-UNNAMED",
+      "-J--add-opens=java.base/java.nio=ALL-UNNAMED",
+      "-J--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+    ),
   )
-  .dependsOn(sdk % "compile->compile;test->test", weaver, dproc, diag, db, secp256k1)
+  .enablePlugins(JavaAppPackaging, BuildInfoPlugin)
+  .dependsOn(
+    sdk % "compile->compile;test->test",
+    weaver,
+    dproc,
+    diag,
+    db  % "compile->compile;test->test",
+    secp256k1,
+    macros,
+  )
 
 // Diagnostics
 lazy val diag = (project in file("diag"))
@@ -113,7 +136,7 @@ lazy val sim = (project in file("sim"))
   //  .settings(settingsScala3*) // Not supported in IntelliJ Scala plugin
   .settings(settingsScala2*)
   .settings(
-    libraryDependencies ++= common,
+    libraryDependencies ++= common :+ embedPgsql,
     version                          := "0.1.0-SNSHOT",
     assembly / mainClass             := Some("sim.NetworkSim"),
     assembly / assemblyJarName       := "sim.jar",
@@ -125,18 +148,11 @@ lazy val sim = (project in file("sim"))
   )
   .dependsOn(node, db, diag)
 
-// Rholang implementation
-lazy val rholang = (project in file("rholang"))
-  .settings(settingsScala2*)
-  .settings(bnfcSettings*)
-  .settings(libraryDependencies ++= common ++ tests :+ protobuf :+ bouncyProvCastle)
-  // TODO Matching the rholang object should be always exhaustive. Remove when done.
-  .settings(scalacOptions ++= Seq("-Xlint:-strict-unsealed-patmat", "-Xnon-strict-patmat-analysis"))
-  .dependsOn(sdk % "compile->compile;test->test")
-
-// Legacy implementation (rholang + rspace)
+// Legacy implementation (rholang + rspace).
+// This also contains new code with rholang implementation, under namespace io.rhonix.
 lazy val legacy = (project in file("legacy"))
   .settings(settingsScala2*)
+  .settings(bnfcSettings*)
   .settings(
     scalacOptions ~= { options =>
       options.filterNot(Set("-Xfatal-warnings", "-Ywarn-unused:imports")) ++ Seq(
@@ -144,7 +160,10 @@ lazy val legacy = (project in file("legacy"))
         "-Xnon-strict-patmat-analysis",
         "-Wconf:cat=deprecation:ws",   // suppress deprecation warnings
         "-Xlint:-missing-interpolator",// Disable false positive strings containing ${...}
-      )
+      ) ++ Seq(
+        "-Xlint:-strict-unsealed-patmat",
+        "-Xnon-strict-patmat-analysis",
+      ) // TODO Matching the rholang object should be always exhaustive. Remove when done.
     },
     Compile / compile / wartremoverErrors ~= {
       _.filterNot(Seq(Wart.SeqApply, Wart.Throw, Wart.Var, Wart.SeqUpdated).contains)
@@ -152,13 +171,13 @@ lazy val legacy = (project in file("legacy"))
     libraryDependencies ++= common ++ tests ++ legacyLibs,
     resolvers += ("jitpack" at "https://jitpack.io"),
   )
-  .dependsOn(sdk, rholang, macros) // depends on new rholang implementation
+  .dependsOn(sdk, macros, secp256k1) // depends on new rholang implementation
 
 // Macro implementation should be compiled before macro application
 // https://stackoverflow.com/questions/75847326/macro-implementation-not-found-scala-2-13-3
 lazy val macros = (project in file("macros"))
   .settings(settingsScala2*)
-  .settings(libraryDependencies += scalaReflect(scala2Version))
+  .settings(libraryDependencies ++= Seq(scalaReflect(scala2Version), kindProjector))
   .dependsOn(sdk)
 
 lazy val secp256k1 = (project in file("secp256k1"))

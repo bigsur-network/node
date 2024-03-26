@@ -1,15 +1,15 @@
 package coop.rchain.models.rholang
 
 import com.google.protobuf.ByteString
+import coop.rchain.models.*
 import coop.rchain.models.Connective.ConnectiveInstance
-import coop.rchain.models.Connective.ConnectiveInstance._
+import coop.rchain.models.Connective.ConnectiveInstance.*
 import coop.rchain.models.Expr.ExprInstance
-import coop.rchain.models.Expr.ExprInstance._
+import coop.rchain.models.Expr.ExprInstance.*
 import coop.rchain.models.GUnforgeable.UnfInstance
 import coop.rchain.models.GUnforgeable.UnfInstance.{GDeployIdBody, GDeployerIdBody, GPrivateBody, GSysAuthTokenBody}
 import coop.rchain.models.Var.VarInstance
 import coop.rchain.models.Var.VarInstance.{BoundVar, FreeVar, Wildcard}
-import coop.rchain.models._
 
 import scala.collection.immutable.{BitSet, Vector}
 
@@ -356,16 +356,16 @@ object implicits {
 
     def ++(that: Par): Par =
       Par(
-        that.sends ++ p.sends,
-        that.receives ++ p.receives,
-        that.news ++ p.news,
-        that.exprs ++ p.exprs,
-        that.matches ++ p.matches,
-        that.unforgeables ++ p.unforgeables,
-        that.bundles ++ p.bundles,
-        that.connectives ++ p.connectives,
-        that.locallyFree | p.locallyFree,
-        that.connectiveUsed || p.connectiveUsed,
+        p.sends ++ that.sends,
+        p.receives ++ that.receives,
+        p.news ++ that.news,
+        p.exprs ++ that.exprs,
+        p.matches ++ that.matches,
+        p.unforgeables ++ that.unforgeables,
+        p.bundles ++ that.bundles,
+        p.connectives ++ that.connectives,
+        p.locallyFree | that.locallyFree,
+        p.connectiveUsed || that.connectiveUsed,
       )
   }
 

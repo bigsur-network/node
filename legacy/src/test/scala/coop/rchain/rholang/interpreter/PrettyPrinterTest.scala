@@ -1,134 +1,128 @@
 package coop.rchain.rholang.interpreter
 
-import java.io.StringReader
-
-import coop.rchain.models.Expr.ExprInstance._
-import coop.rchain.models.rholang.implicits._
-import coop.rchain.models.{Send, _}
-import coop.rchain.rholang.interpreter.compiler.{
-  BoundMapChain,
-  Compiler,
-  FreeMap,
-  NameSort,
-  NameVisitInputs,
-  ProcNormalizeMatcher,
-  ProcSort,
-  ProcVisitInputs,
-  SourcePosition,
-  VarSort,
-}
-import coop.rchain.rholang.interpreter.compiler.normalizer.{
-  BoolNormalizeMatcher,
-  GroundNormalizeMatcher,
-  NameNormalizeMatcher,
-}
-import io.rhonix.rholang.ast.rholang.Absyn._
 import cats.Eval
+import cats.effect.kernel.Sync
+import coop.rchain.catscontrib.effect.implicits.sEval
+import coop.rchain.models.Expr.ExprInstance.*
+import coop.rchain.models.rholang.implicits.*
+import coop.rchain.models.{Send, *}
+import coop.rchain.rholang.interpreter.compiler.*
+import io.rhonix.rholang.Bindings
+import io.rhonix.rholang.ast.rholang.Absyn.*
+import io.rhonix.rholang.normalizer.{Normalizer, NormalizerRecImpl}
+import io.rhonix.rholang.types.*
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import coop.rchain.catscontrib.effect.implicits.sEval
 
+import java.io.StringReader
 import scala.collection.immutable.BitSet
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
 
 class BoolPrinterSpec extends AnyFlatSpec with Matchers {
 
+  /** Creates normalizer in default state */
+  def testNormalizer[F[_]: Sync]: NormalizerRecImpl[F, VarSort] = {
+    val norm = new NormalizerRecImpl[F, VarSort].init
+    norm
+  }
+
   "GBool(true)" should "Print as \"" + true + "\"" in {
     val btrue = new BoolTrue()
-    PrettyPrinter().buildString(BoolNormalizeMatcher.normalizeMatch(btrue)) shouldBe "true"
+    val gnd   = new PGround(new GroundBool(btrue))
+    PrettyPrinter().buildString(testNormalizer[Eval].normalize(gnd).value) shouldBe "true"
   }
 
   "GBool(false)" should "Print as \"" + false + "\"" in {
     val bfalse = new BoolFalse()
-    PrettyPrinter().buildString(BoolNormalizeMatcher.normalizeMatch(bfalse)) shouldBe "false"
+    val gnd    = new PGround(new GroundBool(bfalse))
+    PrettyPrinter().buildString(testNormalizer[Eval].normalize(gnd).value) shouldBe "false"
   }
 }
 
 class GroundPrinterSpec extends AnyFlatSpec with Matchers {
 
+  /** Creates normalizer in default state */
+  def testNormalizer[F[_]: Sync]: NormalizerRecImpl[F, VarSort] = {
+    val norm = new NormalizerRecImpl[F, VarSort].init
+    norm
+  }
+
   "GroundInt" should "Print as \"" + 7 + "\"" in {
     val gi             = new GroundInt("7")
     val target: String = "7"
-    PrettyPrinter().buildString(GroundNormalizeMatcher.normalizeMatch[Eval](gi).value) shouldBe target
+    val gnd            = new PGround(gi)
+    PrettyPrinter().buildString(testNormalizer[Eval].normalize(gnd).value) shouldBe target
   }
 
   "GroundBigInt" should "Print as \" 9999999999999999999999999999999999999999 \"" in {
     val gbi            = new GroundBigInt("9999999999999999999999999999999999999999")
     val target: String = "BigInt(9999999999999999999999999999999999999999)"
-    PrettyPrinter().buildString(GroundNormalizeMatcher.normalizeMatch[Eval](gbi).value) shouldBe target
+    val gnd            = new PGround(gbi)
+    PrettyPrinter().buildString(testNormalizer[Eval].normalize(gnd).value) shouldBe target
   }
 
   "GroundString" should "Print as \"" + "String" + "\"" in {
     val gs             = new GroundString("\"String\"")
     val target: String = "\"" + "String" + "\""
-    PrettyPrinter().buildString(GroundNormalizeMatcher.normalizeMatch[Eval](gs).value) shouldBe target
+    val gnd            = new PGround(gs)
+    PrettyPrinter().buildString(testNormalizer[Eval].normalize(gnd).value) shouldBe target
   }
 
   "GroundUri" should "Print with back-ticks" in {
     val gu             = new GroundUri("`Uri`")
     val target: String = "`" + "Uri" + "`"
-    PrettyPrinter().buildString(GroundNormalizeMatcher.normalizeMatch[Eval](gu).value) shouldBe target
+    val gnd            = new PGround(gu)
+    PrettyPrinter().buildString(testNormalizer[Eval].normalize(gnd).value) shouldBe target
   }
 }
 
 class CollectPrinterSpec extends AnyFlatSpec with Matchers {
 
-  val inputs                                   = ProcVisitInputs(
-    NilN,
-    BoundMapChain
-      .empty[VarSort]
-      .put(List(("P", ProcSort, SourcePosition(0, 0)), ("x", NameSort, SourcePosition(0, 0)))),
-    FreeMap.empty,
-  )
-  implicit val normalizerEnv: Map[String, Par] = Map.empty
+  /** Test normalizer is initialized with bound variables
+   *
+   * Creates normalizer with initial variable context (bound variables).
+   *
+   *    new P, x in {
+   *        <tests_runs_inside_this_body>
+   *    }
+   */
+  def testNormalizer[F[_]: Sync]: NormalizerRecImpl[F, VarSort] = {
+    val norm = new NormalizerRecImpl[F, VarSort].init
+    norm.boundVarWriter.putBoundVars(Seq(("P", ProcSort, SourcePosition(0, 0)), ("x", NameSort, SourcePosition(0, 0))))
+    norm
+  }
 
   "List" should "Print" in {
-    val listData = new ListProc()
-    listData.add(new PVar(new ProcVarVar("P")))
-    listData.add(new PEval(new NameVar("x")))
-    listData.add(new PGround(new GroundInt("7")))
-    val list     =
-      new PCollect(new CollectList(listData, new ProcRemainderVar(new ProcVarVar("ignored"))))
+    val listData =
+      if (Normalizer.BOUND_VAR_INDEX_REVERSED)
+        Seq(BoundVarN(1), BoundVarN(0), GIntN(7))
+      else
+        Seq(BoundVarN(0), BoundVarN(1), GIntN(7))
 
-    val result =
-      PrettyPrinter(0, 2).buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](list, inputs).value.par,
-      )
+    val list   = EListN(listData, Some(FreeVarN(0)))
+    val result = PrettyPrinter(0, 2).buildString(list)
     result shouldBe "[x0, x1, 7...free0]"
   }
 
   "Set" should "Print" in {
-    val listData = new ListProc()
-    listData.add(new PVar(new ProcVarVar("P")))
-    listData.add(new PEval(new NameVar("x")))
-    listData.add(new PGround(new GroundInt("7")))
-    val list     =
-      new PCollect(new CollectSet(listData, new ProcRemainderVar(new ProcVarVar("ignored"))))
-
-    val result =
-      PrettyPrinter(0, 2).buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](list, inputs).value.par,
-      )
+    val set    = ESetN(Seq(BoundVarN(0), BoundVarN(1), GIntN(7)), Some(FreeVarN(0)))
+    val result = PrettyPrinter(0, 2).buildString(set)
     result shouldBe "Set(7, x1, x0...free0)"
   }
 
   "Map" should "Print" in {
-    val mapData = new ListKeyValuePair()
-    mapData.add(
-      new KeyValuePairImpl(
-        new PGround(new GroundInt("7")),
-        new PGround(new GroundString("\"Seven\"")),
-      ),
-    )
-    mapData.add(new KeyValuePairImpl(new PVar(new ProcVarVar("P")), new PEval(new NameVar("x"))))
-    val map     = new PCollect(new CollectMap(mapData, new ProcRemainderVar(new ProcVarVar("ignored"))))
+    val boundVars =
+      if (Normalizer.BOUND_VAR_INDEX_REVERSED) (BoundVarN(1), BoundVarN(0)) else (BoundVarN(0), BoundVarN(1))
 
-    val result =
-      PrettyPrinter(0, 2).buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](map, inputs).value.par,
-      )
+    val map = EMapN(
+      Seq(
+        (GIntN(7), GStringN("Seven")),
+        boundVars,
+      ),
+      Some(FreeVarN(0)),
+    )
+
+    val result = PrettyPrinter(0, 2).buildString(map)
     result shouldBe "{7 : \"" + "Seven" + "\", x0 : x1...free0}"
   }
 
@@ -154,18 +148,19 @@ class CollectPrinterSpec extends AnyFlatSpec with Matchers {
     )
     val map     = new PCollect(new CollectMap(mapData, new ProcRemainderEmpty()))
 
-    val result =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](map, inputs).value.par,
-      )
+    val result = PrettyPrinter().buildString(testNormalizer[Eval].normalize(map).value)
     val target = """{"a" : 1, "b" : 2, "c" : 3}"""
     result shouldBe target
   }
 }
 
 class ProcPrinterSpec extends AnyFlatSpec with Matchers {
-  val inputs                                   = ProcVisitInputs(NilN, BoundMapChain.empty, FreeMap.empty)
-  implicit val normalizerEnv: Map[String, Par] = Map.empty
+
+  /** Creates normalizer in default state */
+  def testNormalizer[F[_]: Sync]: NormalizerRecImpl[F, VarSort] = {
+    val norm = new NormalizerRecImpl[F, VarSort].init
+    norm
+  }
 
   "New" should "use 0-based indexing" in {
     val source = Par(news = Seq(New(3, Par())))
@@ -268,10 +263,7 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     val nameDec         = new ListNameDecl()
     nameDec.add(new NameDeclSimpl("x"))
     val source          = new PNew(nameDec, receive)
-    val result          =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](source, inputs).value.par,
-      )
+    val result          = PrettyPrinter().buildString(testNormalizer[Eval].normalize(source).value)
     val target          =
       """new x0 in {
         |  for( @{x1} <- x0 ) {
@@ -300,22 +292,19 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     val nameDec         = new ListNameDecl()
     nameDec.add(new NameDeclSimpl("x"))
     val source          = new PNew(nameDec, receive)
-    val result          =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](source, inputs).value.par,
-      )
+    val result          = PrettyPrinter().buildString(testNormalizer[Eval].normalize(source).value)
     val target          =
       """new x0 in {
         |  for( @{x1}, @{x2} <- x0 ) {
-        |    x2 |
-        |    x1
+        |    x1 |
+        |    x2
         |  }
         |}""".stripMargin
     result shouldBe target
   }
 
   "Receive" should "Print multiple binds" in {
-    // new x in { for( y <- x  & z <- x ){ *y | *z } }
+    // new x0, x1 in { for( y <- x1  & z <- x0 ){ *y | *z } }
 
     val listBindings    = new ListName()
     listBindings.add(new NameVar("y"))
@@ -326,14 +315,14 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
       new LinearBindImpl(
         listBindings,
         new NameRemainderEmpty(),
-        new SimpleSource(new NameVar("x0")),
+        new SimpleSource(new NameVar("x1")),
       ),
     )
     listLinearBinds.add(
       new LinearBindImpl(
         listBindings1,
         new NameRemainderEmpty(),
-        new SimpleSource(new NameVar("x1")),
+        new SimpleSource(new NameVar("x0")),
       ),
     )
     val linearSimple    = new LinearSimple(listLinearBinds)
@@ -346,10 +335,7 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     nameDec.add(new NameDeclSimpl("x0"))
     nameDec.add(new NameDeclSimpl("x1"))
     val source          = new PNew(nameDec, receive)
-    val result          =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](source, inputs).value.par,
-      )
+    val result          = PrettyPrinter().buildString(testNormalizer[Eval].normalize(source).value)
     val target          =
       """new x0, x1 in {
         |  for( @{x2} <- x1  & @{x3} <- x0 ) {
@@ -393,17 +379,14 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     nameDec.add(new NameDeclSimpl("x"))
     nameDec.add(new NameDeclSimpl("y"))
     val source          = new PNew(nameDec, receive)
-    val result          =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](source, inputs).value.par,
-      )
+    val result          = PrettyPrinter().buildString(testNormalizer[Eval].normalize(source).value)
     val target          =
       """new x0, x1 in {
-        |  for( @{x2}, @{x3} <- x1  & @{x4}, @{x5} <- x0 ) {
-        |    x3 |
+        |  for( @{x2}, @{x3} <- x0  & @{x4}, @{x5} <- x1 ) {
         |    x2 |
-        |    x5 |
-        |    x4
+        |    x3 |
+        |    x4 |
+        |    x5
         |  }
         |}""".stripMargin
     result shouldBe target
@@ -445,16 +428,13 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     nameDec.add(new NameDeclSimpl("x"))
     nameDec.add(new NameDeclSimpl("y"))
     val source          = new PNew(nameDec, receive)
-    val result          =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](source, inputs).value.par,
-      )
+    val result          = PrettyPrinter().buildString(testNormalizer[Eval].normalize(source).value)
     val target          =
       """new x0, x1 in {
-        |  for( @{x2}, @{x3} <- x1  & @{x4}, @{x5} <- x0 ) {
-        |    @{x3}!(Nil) |
+        |  for( @{x2}, @{x3} <- x0  & @{x4}, @{x5} <- x1 ) {
+        |    @{x5}!(Nil) |
         |    x2 |
-        |    x5 |
+        |    x3 |
         |    x4
         |  }
         |}""".stripMargin
@@ -485,10 +465,7 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     val nameDec         = new ListNameDecl()
     nameDec.add(new NameDeclSimpl("x"))
     val source          = new PNew(nameDec, body)
-    val result          =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](source, inputs).value.par,
-      )
+    val result          = PrettyPrinter().buildString(testNormalizer[Eval].normalize(source).value)
     val target          =
       """new x0 in {
         |  x0!(*x0) |
@@ -501,20 +478,17 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
 
   "PNil" should "Print" in {
     val nil    = new PNil()
-    val result = PrettyPrinter().buildString(
-      ProcNormalizeMatcher.normalizeMatch[Eval](nil, inputs).value.par,
-    )
+    val result = PrettyPrinter().buildString(testNormalizer[Eval].normalize(nil).value)
     result shouldBe "Nil"
   }
 
   val pvar = new PVar(new ProcVarVar("x"))
   "PVar" should "Print with fresh identifier" in {
-    val boundInputs =
-      inputs.copy(boundMapChain = inputs.boundMapChain.put(("x", ProcSort, SourcePosition(0, 0))))
-    val result      =
-      PrettyPrinter(0, 1).buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](pvar, boundInputs).value.par,
-      )
+    val norm = testNormalizer
+    // Add bound variable
+    norm.boundVarWriter.putBoundVars(Seq(("x", ProcSort, SourcePosition(0, 0))))
+
+    val result = PrettyPrinter(0, 1).buildString(norm.normalize(pvar).value)
     result shouldBe "x0"
   }
 
@@ -534,26 +508,24 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
   }
 
   "PEval" should "Print eval with fresh identifier" in {
-    val pEval       = new PEval(new NameVar("x"))
-    val boundInputs =
-      inputs.copy(boundMapChain = inputs.boundMapChain.put(("x", NameSort, SourcePosition(0, 0))))
-    val result      =
-      PrettyPrinter(0, 1).buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](pEval, boundInputs).value.par,
-      )
+    val norm = testNormalizer
+    // Add bound variable
+    norm.boundVarWriter.putBoundVars(Seq(("x", NameSort, SourcePosition(0, 0))))
+
+    val pEval  = new PEval(new NameVar("x"))
+    val result = PrettyPrinter(0, 1).buildString(norm.normalize(pEval).value)
     result shouldBe "x0"
   }
 
   it should "Recognize occurrences of the same variable during collapses" in {
-    val pEval       = new PEval(
+    val norm = testNormalizer
+    // Add bound variable
+    norm.boundVarWriter.putBoundVars(Seq(("x", ProcSort, SourcePosition(0, 0))))
+
+    val pEval  = new PEval(
       new NameQuote(new PPar(new PVar(new ProcVarVar("x")), new PVar(new ProcVarVar("x")))),
     )
-    val boundInputs =
-      inputs.copy(boundMapChain = inputs.boundMapChain.put(("x", ProcSort, SourcePosition(0, 0))))
-    val result      =
-      PrettyPrinter(0, 1).buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](pEval, boundInputs).value.par,
-      )
+    val result = PrettyPrinter(0, 1).buildString(norm.normalize(pEval).value)
     result shouldBe
       """x0 |
         |x0""".stripMargin
@@ -600,62 +572,53 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     sentData.add(new PGround(new GroundInt("7")))
     sentData.add(new PGround(new GroundInt("8")))
     val pSend    = new PSend(new NameQuote(new PNil()), new SendSingle(), sentData)
-    val result   = PrettyPrinter().buildString(
-      ProcNormalizeMatcher.normalizeMatch[Eval](pSend, inputs).value.par,
-    )
+    val result   = PrettyPrinter().buildString(testNormalizer.normalize(pSend).value)
     result shouldBe "@{Nil}!(7, 8)"
   }
 
   "PSend" should "Identify variables as they're bound" in {
-    val sentData    = new ListProc()
+    val norm = testNormalizer
+    // Add bound variable
+    norm.boundVarWriter.putBoundVars(Seq(("x", NameSort, SourcePosition(0, 0))))
+
+    val sentData = new ListProc()
     sentData.add(new PGround(new GroundInt("7")))
     sentData.add(new PGround(new GroundInt("8")))
-    val pSend       = new PSend(new NameVar("x"), new SendSingle(), sentData)
-    val boundInputs =
-      inputs.copy(boundMapChain = inputs.boundMapChain.put(("x", NameSort, SourcePosition(0, 0))))
-    val result      =
-      PrettyPrinter(0, 1).buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](pSend, boundInputs).value.par,
-      )
+    val pSend    = new PSend(new NameVar("x"), new SendSingle(), sentData)
+    val result   = PrettyPrinter(0, 1).buildString(norm.normalize(pSend).value)
     result shouldBe "@{x0}!(7, 8)"
   }
 
   "PPar" should "Respect sorting" in {
     val parGround = new PPar(new PGround(new GroundInt("7")), new PGround(new GroundInt("8")))
-    val result    =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](parGround, inputs).value.par,
-      )
+    val result    = PrettyPrinter().buildString(testNormalizer.normalize(parGround).value)
     result shouldBe
-      """8 |
-        |7""".stripMargin
+      """7 |
+        |8""".stripMargin
   }
 
   "PPar" should "Print" in {
+    val norm = testNormalizer
+    // Add bound variable
+    norm.boundVarWriter.putBoundVars(Seq(("x", ProcSort, SourcePosition(0, 0))))
+
     val parDoubleBound = new PPar(new PVar(new ProcVarVar("x")), new PVar(new ProcVarVar("x")))
-    val boundInputs    =
-      inputs.copy(boundMapChain = inputs.boundMapChain.put(("x", ProcSort, SourcePosition(0, 0))))
-    val result         = PrettyPrinter(0, 1).buildString(
-      ProcNormalizeMatcher.normalizeMatch[Eval](parDoubleBound, boundInputs).value.par,
-    )
+    val result         = PrettyPrinter(0, 1).buildString(norm.normalize(parDoubleBound).value)
     result shouldBe
       """x0 |
         |x0""".stripMargin
   }
 
   "PPar" should "Use fresh identifiers for free variables" in {
-    val parDoubleFree = new PPar(new PVar(new ProcVarVar("x")), new PVar(new ProcVarVar("y")))
-    val result        =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](parDoubleFree, inputs).value.par,
-      )
+    val parDoubleFree = ParProcN(Seq(FreeVarN(0), FreeVarN(1)))
+    val result        = PrettyPrinter().buildString(parDoubleFree)
     result shouldBe
-      """free1 |
-        |free0""".stripMargin
+      """free0 |
+        |free1""".stripMargin
   }
 
   "PInput" should "Print a receive" in {
-    // for ( x, @for( @y, z <- @Nil ){ y | u | *z } <- @Nil ) { x!(u) }
+    // for ( x, @for( @y, z <- @Nil ){ y | *z | u } <- @Nil ) { x!(u) }
 
     val listBindings     = new ListName()
     listBindings.add(new NameQuote(new PVar(new ProcVarVar("y"))))
@@ -696,12 +659,9 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     listSend1.add(new PVar(new ProcVarVar("u")))
     val body1            = new PSend(new NameVar("x"), new SendSingle(), listSend1)
     val basicInput1      = new PInput(listReceipt1, body1)
-    val result           =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](basicInput1, inputs).value.par,
-      )
+    val result           = PrettyPrinter().buildString(testNormalizer.normalize(basicInput1).value)
     val target           =
-      """for( @{x0}, @{for( @{y0}, @{y1} <- @{Nil} ) { x1 | y0 | y1 }} <- @{Nil} ) {
+      """for( @{x0}, @{for( @{y0}, @{y1} <- @{Nil} ) { y0 | y1 | x1 }} <- @{Nil} ) {
         |  @{x0}!(x1)
         |}""".stripMargin
     result shouldBe target
@@ -709,6 +669,8 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
 
   "PInput" should "Print a more complicated receive" in {
     // new x, y in { for ( z, @a <- y  & b, @c <- x ) { z!(c) | b!(a) | for( d <- b ){ *d | match d { case 42 => Nil case e => c } }
+
+    // new x, v in { for ( x1, @y1 <- x  & x2, @y2 <- v ) { x1!(y2) | x2!(y1) | for( z <- x1 ){ *z | match d { case 42 => Nil case y => y2 } }
 
     val listBindings1    = new ListName()
     listBindings1.add(new NameVar("x1"))
@@ -770,23 +732,20 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     listNameDecl.add(new NameDeclSimpl("x"))
     listNameDecl.add(new NameDeclSimpl("v"))
     val pInput           = new PNew(listNameDecl, new PInput(listReceipt, body3))
-    val result           =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](pInput, inputs).value.par,
-      )
+    val result           = PrettyPrinter().buildString(testNormalizer.normalize(pInput).value)
     result shouldBe
       """new x0, x1 in {
-        |  for( @{x2}, @{x3} <- x1  & @{x4}, @{x5} <- x0 ) {
+        |  for( @{x2}, @{x3} <- x0  & @{x4}, @{x5} <- x1 ) {
         |    @{x2}!(x5) |
         |    @{x4}!(x3) |
-        |    for( @{x6} <- @{x4} ) {
+        |    for( @{x6} <- @{x2} ) {
         |      x6 |
         |      match x6 {
         |        42 => {
         |          Nil
         |        }
         |        x7 => {
-        |          x3
+        |          x5
         |        }
         |      }
         |    }
@@ -817,18 +776,12 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
         new PSend(new NameVar("z"), new SendSingle(), listData3),
       ),
     )
-    val result       = PrettyPrinter()
-      .buildString(
-        ProcNormalizeMatcher
-          .normalizeMatch[Eval](pNew, inputs)
-          .value
-          .par,
-      )
+    val result       = PrettyPrinter().buildString(testNormalizer.normalize(pNew).value)
     result shouldBe
       """new x0, x1, x2 in {
-        |  x2!(9) |
+        |  x0!(7) |
         |  x1!(8) |
-        |  x0!(7)
+        |  x2!(9)
         |}""".stripMargin
   }
 
@@ -860,9 +813,7 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
       new PInput(listReceipt, body),
       send47OnNil,
     )
-    val result          = PrettyPrinter().buildString(
-      ProcNormalizeMatcher.normalizeMatch[Eval](pPar, inputs).value.par,
-    )
+    val result          = PrettyPrinter().buildString(testNormalizer.normalize(pPar).value)
     result shouldBe
       """@{Nil}!(47) |
         |for( @{x0} <- @{Nil} ) {
@@ -895,10 +846,7 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     listSend.add(new PGround(new GroundInt("47")))
     val body       = new PSend(new NameQuote(new PNil()), new SendSingle(), listSend)
     val basicInput = new PIf(condition, body)
-    val result     =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](basicInput, inputs).value.par,
-      )
+    val result     = PrettyPrinter().buildString(testNormalizer.normalize(basicInput).value)
     result shouldBe
       """match true {
         |  true => {
@@ -930,10 +878,7 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
       new PSend(new NameVar("y"), new SendSingle(), ySendData),
     )
     val basicInput = new PIfElse(condition, pNewIf, pNewElse)
-    val result     =
-      PrettyPrinter().buildString(
-        ProcNormalizeMatcher.normalizeMatch[Eval](basicInput, inputs).value.par,
-      )
+    val result     = PrettyPrinter().buildString(testNormalizer.normalize(basicInput).value)
     result shouldBe
       """match (47 == 47) {
         |  true => {
@@ -970,10 +915,8 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
     val listReceipt     = new ListReceipt()
     listReceipt.add(receipt)
     val input           = new PInput(listReceipt, new PNil())
-    val result          = PrettyPrinter().buildString(
-      ProcNormalizeMatcher.normalizeMatch[Eval](input, inputs).value.par,
-    )
-    result shouldBe """for( @{match x1 | x0 { 47 => { Nil } }} <- @{Nil} ) {
+    val result          = PrettyPrinter().buildString(testNormalizer.normalize(input).value)
+    result shouldBe """for( @{match x0 | x1 { 47 => { Nil } }} <- @{Nil} ) {
                       |  Nil
                       |}""".stripMargin
   }
@@ -981,9 +924,7 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
   "PMatches" should "display matches" in {
     val pMatches = new PMatches(new PGround(new GroundInt("1")), new PVar(new ProcVarWildcard()))
 
-    val result = PrettyPrinter(0, 1).buildString(
-      ProcNormalizeMatcher.normalizeMatch[Eval](pMatches, inputs).value.par,
-    )
+    val result = PrettyPrinter(0, 1).buildString(testNormalizer.normalize(pMatches).value)
 
     result shouldBe "(1 matches _)"
   }
@@ -991,9 +932,13 @@ class ProcPrinterSpec extends AnyFlatSpec with Matchers {
   private def checkRoundTrip(prettySource: String): Assertion =
     assert(parseAndPrint(prettySource) == prettySource)
 
-  private def parseAndPrint(source: String): String = PrettyPrinter().buildString(
-    Compiler[Eval].sourceToADT(new StringReader(source)).value,
-  )
+  private def parseAndPrint(source: String): String = {
+    val parsedTolang = Compiler[Eval].sourceToAST(new StringReader(source)).value
+    val parsedPar    = testNormalizer.normalize(parsedTolang).value
+    val printed      = PrettyPrinter().buildString(Bindings.toProto(parsedPar))
+
+    printed
+  }
 }
 
 class IncrementTester extends AnyFlatSpec with Matchers {
@@ -1027,40 +972,35 @@ class IncrementTester extends AnyFlatSpec with Matchers {
 
 class NamePrinterSpec extends AnyFlatSpec with Matchers {
 
-  val inputs                                   = NameVisitInputs(BoundMapChain.empty, FreeMap.empty)
-  implicit val normalizerEnv: Map[String, Par] = Map.empty
+  /** Creates normalizer in default state */
+  def testNormalizer[F[_]: Sync]: NormalizerRecImpl[F, VarSort] = {
+    val norm = new NormalizerRecImpl[F, VarSort].init
+    norm
+  }
 
-  "NameWildcard" should "Print" in {
-    val nw     = new NameWildcard()
-    val result = PrettyPrinter().buildString(
-      NameNormalizeMatcher.normalizeMatch[Eval](nw, inputs).value.par,
-    )
+  "Wildcard" should "Print" in {
+    val nw     = WildcardN
+    val result = PrettyPrinter().buildString(nw)
     result shouldBe "_"
   }
 
-  val nvar = new NameVar("x")
-
   "NameVar" should "Print" in {
-    val boundInputs =
-      inputs.copy(boundMapChain = inputs.boundMapChain.put(("x", NameSort, SourcePosition(0, 0))))
-    val result      =
-      PrettyPrinter(0, 1).buildString(
-        NameNormalizeMatcher.normalizeMatch[Eval](nvar, boundInputs).value.par,
-      )
+    val norm = testNormalizer
+    // Add bound variable
+    norm.boundVarWriter.putBoundVars(Seq(("x", NameSort, SourcePosition(0, 0))))
+
+    val nvar   = new NameVar("x")
+    val result = PrettyPrinter(0, 1).buildString(norm.normalize(nvar).value)
     result shouldBe "x0"
   }
 
-  val nqvar = new NameQuote(new PVar(new ProcVarVar("x")))
-
   "NameQuote" should "Print" in {
-    val nqeval      = new NameQuote(new PPar(new PEval(new NameVar("x")), new PEval(new NameVar("x"))))
-    val boundInputs =
-      inputs.copy(boundMapChain = inputs.boundMapChain.put(("x", NameSort, SourcePosition(0, 0))))
-    val result      =
-      PrettyPrinter(0, 1).buildString(
-        NameNormalizeMatcher.normalizeMatch[Eval](nqeval, boundInputs).value.par,
-      )
+    val norm = testNormalizer
+    // Add bound variable
+    norm.boundVarWriter.putBoundVars(Seq(("x", NameSort, SourcePosition(0, 0))))
+
+    val nqeval = new NameQuote(new PPar(new PEval(new NameVar("x")), new PEval(new NameVar("x"))))
+    val result = PrettyPrinter(0, 1).buildString(norm.normalize(nqeval).value)
     result shouldBe "x0 |\nx0"
   }
-
 }

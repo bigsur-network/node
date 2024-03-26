@@ -34,6 +34,7 @@ jobs:
     timeout-minutes: 30
     container:
       image: rhodevteam/node-buildenv:ubuntu-20.04
+      options: --privileged
     outputs:
       VERSION: ${{ env.VERSION }}
       BRANCH: ${{ env.BRANCH }}
@@ -51,3 +52,10 @@ jobs:
         run: |
           export SBT_OPTS="$SBT_OPTS -Dsbt.task.timings=true -Xmx2500m -Xss2m"
           sbt test
+
+      - name: Publish postgres log
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: embedPgSql.log
+          path: /tmp/embedPgSql.log

@@ -1,6 +1,6 @@
 package coop.rchain.rholang.interpreter.compiler
 
-import io.rhonix.rholang._
+import io.rhonix.rholang.types.ConnectiveN
 
 /**
   * A structure to keep track of free variables using de Bruijn levels (0 based).

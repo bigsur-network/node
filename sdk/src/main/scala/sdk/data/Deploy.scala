@@ -9,13 +9,5 @@ final case class Deploy(
   program: String,       // code of the program
   phloPrice: Long,       // price offered for phlogiston
   phloLimit: Long,       // limit offered for execution
-  nonce: Long,           // nonce of a deploy
-) {
-
-  override def equals(obj: Any): Boolean = obj match {
-    case that: Deploy => this.sig == that.sig
-    case _            => false
-  }
-
-  override def hashCode(): Int = sig.hashCode()
-}
+  nonce: Long,           // nonce of a deploy // TODO: change nonce to validAfterBlockNumber
+)

@@ -1,9 +1,9 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer.processes
 
-import cats.syntax.all._
-import io.rhonix.rholang._
+import cats.syntax.all.*
 import coop.rchain.rholang.interpreter.compiler.{NameVisitOutputs, ProcVisitInputs}
 import coop.rchain.rholang.interpreter.errors.{InterpreterError, PatternReceiveError}
+import io.rhonix.rholang.types.{ConnNotN, ConnOrN}
 
 object Utils {
   def failOnInvalidConnective(

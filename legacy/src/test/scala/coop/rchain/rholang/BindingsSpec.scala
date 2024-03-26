@@ -2,16 +2,16 @@ package coop.rchain.rholang
 
 import com.google.protobuf.ByteString
 import coop.rchain.models.*
-import io.rhonix.rholang.*
 import io.rhonix.rholang.Bindings.{fromProto, toProto}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
-import coop.rchain.models.rholang.implicits._
-import coop.rchain.models.Var.VarInstance._
+import coop.rchain.models.rholang.implicits.*
+import coop.rchain.models.Var.VarInstance.*
 import coop.rchain.models.Var.WildcardMsg
-import coop.rchain.models.Expr.ExprInstance._
-import coop.rchain.models.Connective.ConnectiveInstance._
+import coop.rchain.models.Expr.ExprInstance.*
+import coop.rchain.models.Connective.ConnectiveInstance.*
+import io.rhonix.rholang.types.*
 
 import scala.collection.immutable.BitSet
 

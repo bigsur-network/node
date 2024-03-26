@@ -2,7 +2,8 @@ package sdk.codecs.protobuf
 
 import cats.Eval
 import com.google.protobuf.CodedInputStream
-import sdk.codecs.PrimitiveReader
+import sdk.codecs.{PrimitiveReader, PrimitiveWriter}
+import sdk.primitive.ByteArray
 
 import java.io.InputStream
 
@@ -27,4 +28,7 @@ object ProtoPrimitiveReader {
       def readString: Eval[String] = Eval.always(cis.readString())
     }
   }
+
+  def decodeWith[A](ba: ByteArray, read: PrimitiveReader[Eval] => Eval[A]): Eval[A] =
+    ProtoCodec.decode(ba.bytes, ProtoPrimitiveReader.apply _ andThen read)
 }

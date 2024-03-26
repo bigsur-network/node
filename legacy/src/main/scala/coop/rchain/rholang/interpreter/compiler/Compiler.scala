@@ -1,15 +1,14 @@
 package coop.rchain.rholang.interpreter.compiler
 
 import cats.effect.Sync
-import cats.syntax.all._
-import coop.rchain.models.Connective.ConnectiveInstance
+import cats.syntax.all.*
 import coop.rchain.models.Par
 import coop.rchain.models.rholang.sorter.Sortable
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
+import coop.rchain.rholang.interpreter.errors.*
+import io.rhonix.rholang.Bindings.*
 import io.rhonix.rholang.ast.rholang.Absyn.Proc
 import io.rhonix.rholang.ast.rholang.{parser, Yylex}
-import coop.rchain.rholang.interpreter.errors._
+import io.rhonix.rholang.normalizer.Normalizer
 
 import java.io.{Reader, StringReader}
 
@@ -35,7 +34,6 @@ trait Compiler[F[_]] {
     sourceToAST(new StringReader(source))
 
   def sourceToAST(reader: Reader): F[Proc]
-
 }
 
 object Compiler {
@@ -52,7 +50,8 @@ object Compiler {
 
     def astToADT(proc: Proc, normalizerEnv: Map[String, Par]): F[Par] =
       for {
-        par       <- normalizeTerm(proc)(normalizerEnv)
+        parN      <- Normalizer.normalize(proc)
+        par        = toProto(parN)
         sortedPar <- Sortable[Par].sortMatch(par)
       } yield sortedPar.term
 
@@ -74,45 +73,6 @@ object Compiler {
                     case th: Throwable                                                                     => UnrecognizedInterpreterError(th)
                   }
       } yield proc
-
-    private def normalizeTerm(term: Proc)(implicit normalizerEnv: Map[String, Par]): F[Par] =
-      ProcNormalizeMatcher
-        .normalizeMatch[F](
-          term,
-          ProcVisitInputs(NilN, BoundMapChain.empty, FreeMap.empty),
-        )
-        .flatMap { normalizedTerm =>
-          if (normalizedTerm.freeMap.count > 0) {
-            if (normalizedTerm.freeMap.wildcards.isEmpty && normalizedTerm.freeMap.connectives.isEmpty) {
-              val topLevelFreeList = normalizedTerm.freeMap.levelBindings.map {
-                case (name, FreeContext(_, _, sourcePosition)) => s"$name at $sourcePosition"
-              }
-              F.raiseError(
-                TopLevelFreeVariablesNotAllowedError(topLevelFreeList.mkString(", ")),
-              )
-            } else if (normalizedTerm.freeMap.connectives.nonEmpty) {
-              def connectiveInstanceToString(conn: ConnectiveN): String = conn match {
-                case _: ConnAndN => "/\\ (conjunction)"
-                case _: ConnOrN  => "\\/ (disjunction)"
-                case _: ConnNotN => "~ (negation)"
-                case x           => x.toString
-              }
-              val connectives                                           = normalizedTerm.freeMap.connectives
-                .map { case (connType, sourcePosition) =>
-                  s"${connectiveInstanceToString(connType)} at $sourcePosition"
-                }
-                .mkString(", ")
-              F.raiseError(TopLevelLogicalConnectivesNotAllowedError(connectives))
-            } else {
-              val topLevelWildcardList = normalizedTerm.freeMap.wildcards.map { sourcePosition =>
-                s"_ (wildcard) at $sourcePosition"
-              }
-              F.raiseError(
-                TopLevelWildcardsNotAllowedError(topLevelWildcardList.mkString(", ")),
-              )
-            }
-          } else toProto(normalizedTerm.par).pure[F]
-        }
 
     /**
       * @note In lieu of a purely functional wrapper around the lexer and parser

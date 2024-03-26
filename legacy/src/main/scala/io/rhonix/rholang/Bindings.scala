@@ -1,6 +1,7 @@
 package io.rhonix.rholang
 
-import coop.rchain.models._
+import coop.rchain.models.*
+import io.rhonix.rholang.types.*
 
 object Bindings {
   def toProto(p: ParN): Par                             = BindingsToProto.toProto(p)

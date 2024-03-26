@@ -5,7 +5,8 @@ import cats.effect.unsafe.implicits.global
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{Outcome, Succeeded}
-import slick.jdbc.JdbcProfile
+import slick.jdbc.{JdbcProfile, PostgresProfile}
+import slick.migration.api.PostgresDialect
 
 class SlickSqlSpec extends AnyFlatSpec with Matchers {
   // TODO: only SQL schema for `Validator` should be printed, but for some reason all tables are printed.
@@ -20,9 +21,8 @@ class SlickSqlSpec extends AnyFlatSpec with Matchers {
       }
       IO(println(showSql)).as(Succeeded)
     }
-    EmbeddedH2SlickDb[IO]
-      .map(db => test(db.profile))
-      .use(IO.pure)
+    EmbeddedPgSqlSlickDb[IO]
+      .use(implicit db => SlickDb[IO](db, PostgresProfile, new PostgresDialect).flatMap(y => test(y.profile)))
       .unsafeRunSync()
   }
 }

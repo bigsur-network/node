@@ -12,7 +12,7 @@ import cats.syntax.functor._
 import cats.syntax.applicativeError._
 import coop.rchain.crypto.util.SecureRandomUtil
 import coop.rchain.crypto.{PrivateKey, PublicKey}
-import org.bitcoin._
+import org.bitcoin.NativeSecp256k1
 import com.google.common.base.Strings
 import coop.rchain.shared.Base16
 import org.bouncycastle.asn1.DLSequence
@@ -144,7 +144,7 @@ object Secp256k1 extends SignaturesAlg {
     */
   def toPublic(seckey: Array[Byte]): Array[Byte] =
     // WARNING: this code throws Assertion exception if input is not correct length
-    NativeSecp256k1.computePubkey(seckey)
+    NativeSecp256k1.computePubkey(seckey, false)
 
   override def toPublic(sec: PrivateKey): PublicKey = PublicKey(toPublic(sec.bytes))
 }

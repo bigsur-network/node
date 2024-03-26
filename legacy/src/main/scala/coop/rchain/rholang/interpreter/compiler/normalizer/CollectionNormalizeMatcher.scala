@@ -1,14 +1,14 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer
 
 import cats.effect.Sync
-import cats.syntax.all._
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
+import cats.syntax.all.*
+import io.rhonix.rholang.Bindings.*
 import coop.rchain.models.{Par, Var}
-import io.rhonix.rholang.ast.rholang.Absyn.{KeyValuePair => AbsynKeyValuePair, _}
-import coop.rchain.rholang.interpreter.compiler._
+import io.rhonix.rholang.ast.rholang.Absyn.{KeyValuePair as AbsynKeyValuePair, *}
+import coop.rchain.rholang.interpreter.compiler.*
+import io.rhonix.rholang.types.{EListN, EMapN, ESetN, ETupleN, ExprN, NilN, ParN, VarN}
 
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 object CollectionNormalizeMatcher {
   def normalizeMatch[F[_]: Sync](c: Collection, input: CollectVisitInputs)(implicit

@@ -1,11 +1,11 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer.processes
 
 import cats.effect.Sync
-import cats.syntax.all._
-import io.rhonix.rholang._
+import cats.syntax.all.*
 import io.rhonix.rholang.ast.rholang.Absyn.{PVar, ProcVarVar, ProcVarWildcard}
-import coop.rchain.rholang.interpreter.compiler._
+import coop.rchain.rholang.interpreter.compiler.*
 import coop.rchain.rholang.interpreter.errors.{UnexpectedProcContext, UnexpectedReuseOfProcContextFree}
+import io.rhonix.rholang.types.{BoundVarN, FreeVarN, ParN, WildcardN}
 
 object PVarNormalizer {
   def normalize[F[_]: Sync](p: PVar, input: ProcVisitInputs): F[ProcVisitOutputs] =

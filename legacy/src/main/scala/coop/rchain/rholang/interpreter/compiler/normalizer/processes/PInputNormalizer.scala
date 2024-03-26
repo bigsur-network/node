@@ -1,19 +1,19 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer.processes
 
 import cats.effect.Sync
-import cats.syntax.all._
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
+import cats.syntax.all.*
+import io.rhonix.rholang.Bindings.*
 import coop.rchain.models.{Par, ReceiveBind}
-import io.rhonix.rholang.ast.rholang.Absyn._
+import io.rhonix.rholang.ast.rholang.Absyn.*
 import coop.rchain.rholang.interpreter.compiler.ProcNormalizeMatcher.normalizeMatch
-import coop.rchain.rholang.interpreter.compiler._
+import coop.rchain.rholang.interpreter.compiler.*
 import coop.rchain.rholang.interpreter.compiler.normalizer.processes.Utils.failOnInvalidConnective
 import coop.rchain.rholang.interpreter.compiler.normalizer.{NameNormalizeMatcher, RemainderNormalizeMatcher}
 import coop.rchain.rholang.interpreter.errors.{ReceiveOnSameChannelsError, UnexpectedReuseOfNameContextFree}
+import io.rhonix.rholang.types.{NilN, ParN, ReceiveBindN, ReceiveN, VarN}
 
 import java.util.UUID
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 object PInputNormalizer {
   @SuppressWarnings(Array("org.wartremover.warts.NonUnitStatements"))

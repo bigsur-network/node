@@ -21,18 +21,34 @@ final case class Block(
   seqNum: Long,                     // sequence number
   offencesSet: Set[ByteArray],      // offences set
 
-  bondsMap: Map[ByteArray, Long], // bonds map
-  finalFringe: Set[ByteArray],    // final fringe set
-  deploySet: Set[ByteArray],      // deploy set in the block
-  mergeSet: Set[ByteArray],       // deploy set merged into pre state
-  dropSet: Set[ByteArray],        // deploy set rejected from pre state
-  mergeSetFinal: Set[ByteArray],  // deploy set finally accepted
-  dropSetFinal: Set[ByteArray],   // deploy set finally rejected
-) {
-  override def equals(obj: Any): Boolean = obj match {
-    case that: Block => this.hash == that.hash
-    case _           => false
-  }
+  bondsMap: Map[ByteArray, Long],      // bonds map
+  finalFringe: Set[ByteArray],         // final fringe set
+  execDeploySet: Set[ByteArray],       // deploy set executed in the block
+  mergeDeploySet: Set[ByteArray],      // deploy set merged into pre state
+  dropDeploySet: Set[ByteArray],       // deploy set rejected from pre state
+  mergeDeploySetFinal: Set[ByteArray], // deploy set finally accepted
+  dropDeploySetFinal: Set[ByteArray],  // deploy set finally rejected
+)
 
-  override def hashCode(): Int = hash.hashCode()
+object Block {
+  def apply(b: sdk.api.data.Block): Block = new sdk.data.Block(
+    b.version,
+    ByteArray(b.hash),
+    b.signatureAlg,
+    ByteArray(b.signature),
+    ByteArray(b.finStateHash),
+    ByteArray(b.postStateHash),
+    ByteArray(b.sender),
+    b.shardId,
+    b.justifications.map(ByteArray(_)),
+    b.seqNum,
+    Set(),
+    b.bonds.map(x => ByteArray(x.validator) -> x.stake).toMap,
+    Set(),
+    b.deploys.map(ByteArray(_)),
+    Set(),
+    Set(),
+    Set(),
+    Set(),
+  )
 }

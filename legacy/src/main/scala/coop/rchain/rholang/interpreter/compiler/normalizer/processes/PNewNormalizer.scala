@@ -1,16 +1,16 @@
 package coop.rchain.rholang.interpreter.compiler.normalizer.processes
 
 import cats.effect.Sync
-import cats.syntax.all._
+import cats.syntax.all.*
 import coop.rchain.models.Par
-import io.rhonix.rholang.Bindings._
-import io.rhonix.rholang._
+import io.rhonix.rholang.Bindings.*
 import io.rhonix.rholang.ast.rholang.Absyn.{NameDeclSimpl, NameDeclUrn, PNew}
 import coop.rchain.rholang.interpreter.compiler.ProcNormalizeMatcher.normalizeMatch
 import coop.rchain.rholang.interpreter.compiler.normalizer.GroundNormalizeMatcher
 import coop.rchain.rholang.interpreter.compiler.{NameSort, ProcVisitInputs, ProcVisitOutputs, SourcePosition}
+import io.rhonix.rholang.types.{NewN, NilN, ParN}
 
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 object PNewNormalizer {
   def normalize[F[_]: Sync](p: PNew, input: ProcVisitInputs)(implicit
